@@ -1,11 +1,56 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "./api";
-import { FareStatus, PaymentMethod, Recommendation, Ride, User } from "./types";
+import {
+  FareStatus,
+  PaymentMethod,
+  Recommendation,
+  Ride,
+  TransitOptions,
+  User
+} from "./types";
 
 const TOKEN_KEY = "tapwise_token";
 const USER_KEY = "tapwise_user";
+const PAYMENT_TYPE_OPTIONS = [
+  { value: "visa", label: "Visa" },
+  { value: "mastercard", label: "Mastercard" },
+  { value: "amex", label: "American Express" },
+  { value: "discover", label: "Discover" },
+  { value: "omny", label: "OMNY Card" },
+  { value: "apple_pay", label: "Apple Pay" },
+  { value: "google_pay", label: "Google Pay" },
+  { value: "other", label: "Other" }
+];
 
 type AuthMode = "login" | "register";
+
+type PaymentFormState = {
+  label: string;
+  paymentType: string;
+  cardholderName: string;
+  last4: string;
+};
+
+type RideFormState = {
+  transitMode: "subway" | "bus";
+  transitLine: string;
+  entryStop: string;
+  exitStop: string;
+};
+
+const emptyPaymentForm: PaymentFormState = {
+  label: "",
+  paymentType: "visa",
+  cardholderName: "",
+  last4: ""
+};
+
+const emptyRideForm: RideFormState = {
+  transitMode: "subway",
+  transitLine: "",
+  entryStop: "",
+  exitStop: ""
+};
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -13,6 +58,52 @@ function formatDate(value: string | null) {
   }
 
   return new Date(value).toLocaleString();
+}
+
+function digitsOnly(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function formatLast4(value: string) {
+  return digitsOnly(value).slice(0, 4);
+}
+
+function validatePaymentForm(form: PaymentFormState) {
+  if (!form.label.trim()) {
+    return "Payment method name is required.";
+  }
+  if (!form.paymentType) {
+    return "Payment type is required.";
+  }
+  if (!form.cardholderName.trim()) {
+    return "Cardholder name is required.";
+  }
+  if (form.last4.length !== 4) {
+    return "Last 4 digits must be exactly 4 numbers.";
+  }
+
+  return null;
+}
+
+function validateRideForm(form: RideFormState) {
+  if (!form.transitLine) {
+    return "Select a train or bus line.";
+  }
+  if (!form.entryStop) {
+    return "Select the stop where you entered.";
+  }
+  if (!form.exitStop) {
+    return "Select the stop where you exited.";
+  }
+  return null;
+}
+
+async function sha256Hex(value: string) {
+  const encoded = new TextEncoder().encode(value);
+  const buffer = await window.crypto.subtle.digest("SHA-256", encoded);
+  return Array.from(new Uint8Array(buffer))
+    .map((item) => item.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 function App() {
@@ -29,8 +120,11 @@ function App() {
   const [selectedMethodId, setSelectedMethodId] = useState<number | null>(null);
   const [fareStatus, setFareStatus] = useState<FareStatus | null>(null);
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
-  const [newMethodLabel, setNewMethodLabel] = useState("");
+  const [paymentForm, setPaymentForm] = useState<PaymentFormState>(emptyPaymentForm);
+  const [rideForm, setRideForm] = useState<RideFormState>(emptyRideForm);
+  const [transitOptions, setTransitOptions] = useState<TransitOptions | null>(null);
   const [manualRideTimestamp, setManualRideTimestamp] = useState("");
+  const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [authError, setAuthError] = useState("");
   const [appError, setAppError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -55,6 +149,58 @@ function App() {
       .catch((error: Error) => setAppError(error.message));
   }, [selectedMethodId, token]);
 
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    void api
+      .getTransitOptions(token)
+      .then((options) => {
+        setTransitOptions(options);
+      })
+      .catch((error: Error) => setAppError(error.message));
+  }, [token]);
+
+  useEffect(() => {
+    if (!transitOptions) {
+      return;
+    }
+
+    setRideForm((current) => {
+      const modeOptions = transitOptions[current.transitMode];
+      const lines = Object.keys(modeOptions);
+      const transitLine =
+        current.transitLine && modeOptions[current.transitLine]
+          ? current.transitLine
+          : (lines[0] ?? "");
+      const stops = transitLine ? modeOptions[transitLine] ?? [] : [];
+      const entryStop =
+        current.entryStop && stops.includes(current.entryStop)
+          ? current.entryStop
+          : (stops[0] ?? "");
+      const exitStop =
+        current.exitStop && stops.includes(current.exitStop)
+          ? current.exitStop
+          : (stops[1] ?? stops[0] ?? "");
+
+      if (
+        current.transitLine === transitLine &&
+        current.entryStop === entryStop &&
+        current.exitStop === exitStop
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        transitLine,
+        entryStop,
+        exitStop
+      };
+    });
+  }, [transitOptions, rideForm.transitMode]);
+
   async function loadDashboard(activeToken: string) {
     try {
       setLoading(true);
@@ -70,8 +216,7 @@ function App() {
       setRecommendation(recommendationPayload);
 
       if (methods.length > 0) {
-        const preferredId =
-          recommendationPayload.best_payment_method_id ?? methods[0].id;
+        const preferredId = recommendationPayload.best_payment_method_id ?? methods[0].id;
         setSelectedMethodId((current) => {
           if (current && methods.some((method) => method.id === current)) {
             return current;
@@ -101,6 +246,8 @@ function App() {
       localStorage.setItem(USER_KEY, JSON.stringify(response.user));
       setToken(response.token);
       setUser(response.user);
+      const options = await api.getTransitOptions(response.token);
+      setTransitOptions(options);
     } catch (error) {
       setAuthError((error as Error).message);
     }
@@ -116,17 +263,74 @@ function App() {
     setSelectedMethodId(null);
     setFareStatus(null);
     setRecommendation(null);
+    setTransitOptions(null);
+  }
+
+  function updatePaymentForm<K extends keyof PaymentFormState>(
+    key: K,
+    value: PaymentFormState[K]
+  ) {
+    setPaymentForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateRideForm<K extends keyof RideFormState>(
+    key: K,
+    value: RideFormState[K]
+  ) {
+    setRideForm((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "transitMode") {
+        return {
+          transitMode: value as RideFormState["transitMode"],
+          transitLine: "",
+          entryStop: "",
+          exitStop: ""
+        };
+      }
+      if (key === "transitLine") {
+        const stops =
+          transitOptions?.[current.transitMode][value as RideFormState["transitLine"]] ?? [];
+        next.entryStop = stops[0] ?? "";
+        next.exitStop = stops[1] ?? stops[0] ?? "";
+      }
+      return next;
+    });
   }
 
   async function handleCreatePaymentMethod(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!token || !newMethodLabel.trim()) {
+    if (!token) {
+      return;
+    }
+
+    const validationError = validatePaymentForm(paymentForm);
+    if (validationError) {
+      setAppError(validationError);
       return;
     }
 
     try {
-      await api.createPaymentMethod(token, newMethodLabel.trim());
-      setNewMethodLabel("");
+      setAppError("");
+      const fingerprintSource = [
+        paymentForm.paymentType,
+        paymentForm.label.trim().toUpperCase(),
+        paymentForm.cardholderName.trim().toUpperCase(),
+        paymentForm.last4
+      ].join("|");
+      const detailsFingerprint = await sha256Hex(fingerprintSource);
+
+      const createdMethod = await api.createPaymentMethod(token, {
+        label: paymentForm.label.trim(),
+        payment_type: paymentForm.paymentType,
+        cardholder_name: paymentForm.cardholderName.trim(),
+        last4: paymentForm.last4,
+        details_fingerprint: detailsFingerprint
+      });
+
+      setPaymentMethods((current) => [...current, createdMethod]);
+      setSelectedMethodId(createdMethod.id);
+      setPaymentForm(emptyPaymentForm);
+      setShowPaymentDetails(false);
       await loadDashboard(token);
     } catch (error) {
       setAppError((error as Error).message);
@@ -138,14 +342,28 @@ function App() {
       return;
     }
 
+    const validationError = validateRideForm(rideForm);
+    if (validationError) {
+      setAppError(validationError);
+      return;
+    }
+
     try {
       const timestamp = useCurrentTime
         ? undefined
         : manualRideTimestamp
           ? new Date(manualRideTimestamp).toISOString()
           : undefined;
-      await api.createRide(token, selectedMethodId, timestamp);
+      await api.createRide(token, {
+        payment_method_id: selectedMethodId,
+        transit_mode: rideForm.transitMode,
+        transit_line: rideForm.transitLine,
+        entry_stop: rideForm.entryStop,
+        exit_stop: rideForm.exitStop,
+        ...(timestamp ? { timestamp } : {})
+      });
       setManualRideTimestamp("");
+      setRideForm((current) => ({ ...emptyRideForm, transitMode: current.transitMode }));
       await loadDashboard(token);
       const status = await api.getFareStatus(token, selectedMethodId);
       setFareStatus(status);
@@ -213,6 +431,14 @@ function App() {
     );
   }
 
+  const availableLines = transitOptions
+    ? Object.keys(transitOptions[rideForm.transitMode])
+    : [];
+  const availableStops =
+    transitOptions && rideForm.transitLine
+      ? transitOptions[rideForm.transitMode][rideForm.transitLine] ?? []
+      : [];
+
   const selectedMethod = paymentMethods.find((method) => method.id === selectedMethodId) ?? null;
   const progress = fareStatus ? (fareStatus.rides_taken / 12) * 100 : 0;
 
@@ -239,28 +465,83 @@ function App() {
           </p>
         </article>
 
-        <article className="panel">
-          <p className="panel-label">Payment Methods</p>
-          <div className="selector-list">
+        <article className="panel payment-panel">
+          <div className="panel-header-row">
+            <p className="panel-label">Payment Methods</p>
+            <button
+              type="button"
+              className="secondary-button ghost-button"
+              onClick={() => setShowPaymentDetails((current) => !current)}
+            >
+              {showPaymentDetails ? "Hide details" : "Show details"}
+            </button>
+          </div>
+
+          <div className="selector-list method-list">
             {paymentMethods.map((method) => (
               <button
                 key={method.id}
-                className={method.id === selectedMethodId ? "selector active" : "selector"}
+                className={method.id === selectedMethodId ? "selector active selector-card" : "selector selector-card"}
                 onClick={() => setSelectedMethodId(method.id)}
               >
-                {method.label}
+                <strong>{method.label}</strong>
+                <span>{method.masked_details}</span>
               </button>
             ))}
           </div>
 
-          <form onSubmit={handleCreatePaymentMethod} className="inline-form">
-            <input
-              value={newMethodLabel}
-              onChange={(event) => setNewMethodLabel(event.target.value)}
-              placeholder="Add Apple Pay, Visa 1234, OMNY card..."
-            />
+          <form onSubmit={handleCreatePaymentMethod} className="payment-form">
+            <div className="form-grid">
+              <label>
+                Payment method name
+                <input
+                  value={paymentForm.label}
+                  onChange={(event) => updatePaymentForm("label", event.target.value)}
+                  placeholder="Work Visa, Personal OMNY, Apple Pay"
+                  required
+                />
+              </label>
+              <label>
+                Payment type
+                <select
+                  value={paymentForm.paymentType}
+                  onChange={(event) => updatePaymentForm("paymentType", event.target.value)}
+                >
+                  {PAYMENT_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="full-span">
+                Cardholder name
+                <input
+                  value={paymentForm.cardholderName}
+                  onChange={(event) => updatePaymentForm("cardholderName", event.target.value)}
+                  placeholder="Name on card"
+                  required
+                />
+              </label>
+              <label>
+                Last 4 digits
+                <input
+                  type={showPaymentDetails ? "text" : "password"}
+                  inputMode="numeric"
+                  value={paymentForm.last4}
+                  onChange={(event) => updatePaymentForm("last4", formatLast4(event.target.value))}
+                  placeholder="4242"
+                  required
+                />
+              </label>
+            </div>
+            <p className="muted helper-copy">
+              TapWise stores only payment type, cardholder name, last 4, and a
+              one-way fingerprint. Full card number, CVV, expiry, and ZIP are not
+              collected at all.
+            </p>
             <button type="submit" className="primary-button">
-              Add
+              Save payment method
             </button>
           </form>
         </article>
@@ -274,7 +555,7 @@ function App() {
           </h2>
           <p className="muted">
             {selectedMethod
-              ? `Tracking ${selectedMethod.label}`
+              ? `Tracking ${selectedMethod.label} (${selectedMethod.masked_details})`
               : "Select a payment method to see status."}
           </p>
           <div className="progress-track">
@@ -284,11 +565,76 @@ function App() {
             <span>{fareStatus?.rides_taken ?? 0} / 12 paid rides</span>
             <span>Window ends {formatDate(fareStatus?.window_end ?? null)}</span>
           </div>
+          {selectedMethod ? (
+            <div className="detail-chip-row">
+              <span className="detail-chip">{selectedMethod.payment_type.replace("_", " ").toUpperCase()}</span>
+              <span className="detail-chip">Cardholder: {selectedMethod.cardholder_name}</span>
+            </div>
+          ) : null}
         </article>
 
         <article className="panel">
           <p className="panel-label">Ride Logging</p>
           <div className="ride-actions">
+            <div className="form-grid">
+              <label>
+                Transit mode
+                <select
+                  value={rideForm.transitMode}
+                  onChange={(event) =>
+                    updateRideForm(
+                      "transitMode",
+                      event.target.value as RideFormState["transitMode"]
+                    )
+                  }
+                >
+                  <option value="subway">Subway</option>
+                  <option value="bus">Bus</option>
+                </select>
+              </label>
+              <label>
+                Line
+                <select
+                  value={rideForm.transitLine}
+                  onChange={(event) => updateRideForm("transitLine", event.target.value)}
+                >
+                  <option value="">Select a line</option>
+                  {availableLines.map((line) => (
+                    <option key={line} value={line}>
+                      {line}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Entry stop
+                <select
+                  value={rideForm.entryStop}
+                  onChange={(event) => updateRideForm("entryStop", event.target.value)}
+                >
+                  <option value="">Select entry stop</option>
+                  {availableStops.map((stop) => (
+                    <option key={stop} value={stop}>
+                      {stop}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Exit stop
+                <select
+                  value={rideForm.exitStop}
+                  onChange={(event) => updateRideForm("exitStop", event.target.value)}
+                >
+                  <option value="">Select exit stop</option>
+                  {availableStops.map((stop) => (
+                    <option key={stop} value={stop}>
+                      {stop}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             <button
               className="primary-button"
               onClick={() => void handleAddRide(true)}
@@ -323,6 +669,10 @@ function App() {
                 <div>
                   <strong>{ride.payment_method_label}</strong>
                   <p>{formatDate(ride.timestamp)}</p>
+                  <p>
+                    {ride.transit_mode.toUpperCase()} {ride.transit_line}: {ride.entry_stop} to{" "}
+                    {ride.exit_stop}
+                  </p>
                 </div>
                 <span>Ride #{ride.id}</span>
               </div>

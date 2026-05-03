@@ -11,6 +11,10 @@ export type AuthResponse = {
 export type PaymentMethod = {
   id: number;
   label: string;
+  payment_type: string;
+  cardholder_name: string;
+  last4: string;
+  masked_details: string;
   created_at: string;
 };
 
@@ -18,8 +22,17 @@ export type Ride = {
   id: number;
   payment_method_id: number;
   payment_method_label: string;
+  transit_mode: string;
+  transit_line: string;
+  entry_stop: string;
+  exit_stop: string;
   timestamp: string;
   created_at: string;
+};
+
+export type TransitOptions = {
+  subway: Record<string, string[]>;
+  bus: Record<string, string[]>;
 };
 
 export type FareStatus = {

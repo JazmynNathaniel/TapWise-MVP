@@ -3,10 +3,28 @@ import {
   FareStatus,
   PaymentMethod,
   Recommendation,
-  Ride
+  Ride,
+  TransitOptions
 } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5000/api";
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
+type PaymentMethodPayload = {
+  label: string;
+  payment_type: string;
+  cardholder_name: string;
+  last4: string;
+  details_fingerprint: string;
+};
+
+type RidePayload = {
+  payment_method_id: number;
+  transit_mode: string;
+  transit_line: string;
+  entry_stop: string;
+  exit_stop: string;
+  timestamp?: string;
+};
 
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -42,12 +60,12 @@ export const api = {
   getPaymentMethods(token: string) {
     return request<PaymentMethod[]>("/payment-methods", {}, token);
   },
-  createPaymentMethod(token: string, label: string) {
+  createPaymentMethod(token: string, payload: PaymentMethodPayload) {
     return request<PaymentMethod>(
       "/payment-methods",
       {
         method: "POST",
-        body: JSON.stringify({ label })
+        body: JSON.stringify(payload)
       },
       token
     );
@@ -55,15 +73,15 @@ export const api = {
   getRides(token: string) {
     return request<Ride[]>("/rides", {}, token);
   },
-  createRide(token: string, paymentMethodId: number, timestamp?: string) {
+  getTransitOptions(token: string) {
+    return request<TransitOptions>("/transit-options", {}, token);
+  },
+  createRide(token: string, payload: RidePayload) {
     return request<Ride>(
       "/rides",
       {
         method: "POST",
-        body: JSON.stringify({
-          payment_method_id: paymentMethodId,
-          ...(timestamp ? { timestamp } : {})
-        })
+        body: JSON.stringify(payload)
       },
       token
     );
