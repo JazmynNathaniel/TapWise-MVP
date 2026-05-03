@@ -1,0 +1,17 @@
+backend/.env
+backend/.venv/
+backend/__pycache__/
+backend/app/__pycache__/
+backend/app/routes/__pycache__/
+backend/app/services/__pycache__/
+backend/*.log
+backend/*.db
+backend/instance/
+
+frontend/.env
+frontend/node_modules/
+frontend/dist/
+frontend/*.log
+
+.DS_Store
+Thumbs.db
