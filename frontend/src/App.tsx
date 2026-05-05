@@ -27,8 +27,7 @@ type AuthMode = "login" | "register";
 type PaymentFormState = {
   label: string;
   paymentType: string;
-  cardholderName: string;
-  last4: string;
+  identifierCode: string;
 };
 
 type RideFormState = {
@@ -38,11 +37,12 @@ type RideFormState = {
   exitStop: string;
 };
 
+type RideTimingMode = "now" | "manual";
+
 const emptyPaymentForm: PaymentFormState = {
   label: "",
   paymentType: "visa",
-  cardholderName: "",
-  last4: ""
+  identifierCode: ""
 };
 
 const emptyRideForm: RideFormState = {
@@ -64,8 +64,29 @@ function digitsOnly(value: string) {
   return value.replace(/\D/g, "");
 }
 
-function formatLast4(value: string) {
+function format4DigitCode(value: string) {
   return digitsOnly(value).slice(0, 4);
+}
+
+function formatLocalDateInput(value: Date) {
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, "0");
+  const day = `${value.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatLocalTimeInput(value: Date) {
+  const hours = `${value.getHours()}`.padStart(2, "0");
+  const minutes = `${value.getMinutes()}`.padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+function createManualRideDateTime() {
+  const now = new Date();
+  return {
+    date: formatLocalDateInput(now),
+    time: formatLocalTimeInput(now)
+  };
 }
 
 function validatePaymentForm(form: PaymentFormState) {
@@ -75,11 +96,8 @@ function validatePaymentForm(form: PaymentFormState) {
   if (!form.paymentType) {
     return "Payment type is required.";
   }
-  if (!form.cardholderName.trim()) {
-    return "Cardholder name is required.";
-  }
-  if (form.last4.length !== 4) {
-    return "Last 4 digits must be exactly 4 numbers.";
+  if (form.identifierCode.length !== 4) {
+    return "Identifier code must be exactly 4 numbers.";
   }
 
   return null;
@@ -123,7 +141,9 @@ function App() {
   const [paymentForm, setPaymentForm] = useState<PaymentFormState>(emptyPaymentForm);
   const [rideForm, setRideForm] = useState<RideFormState>(emptyRideForm);
   const [transitOptions, setTransitOptions] = useState<TransitOptions | null>(null);
-  const [manualRideTimestamp, setManualRideTimestamp] = useState("");
+  const [rideTimingMode, setRideTimingMode] = useState<RideTimingMode>("now");
+  const [manualRideDate, setManualRideDate] = useState(() => createManualRideDateTime().date);
+  const [manualRideTime, setManualRideTime] = useState(() => createManualRideDateTime().time);
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [authError, setAuthError] = useState("");
   const [appError, setAppError] = useState("");
@@ -314,16 +334,14 @@ function App() {
       const fingerprintSource = [
         paymentForm.paymentType,
         paymentForm.label.trim().toUpperCase(),
-        paymentForm.cardholderName.trim().toUpperCase(),
-        paymentForm.last4
+        paymentForm.identifierCode
       ].join("|");
       const detailsFingerprint = await sha256Hex(fingerprintSource);
 
       const createdMethod = await api.createPaymentMethod(token, {
         label: paymentForm.label.trim(),
         payment_type: paymentForm.paymentType,
-        cardholder_name: paymentForm.cardholderName.trim(),
-        last4: paymentForm.last4,
+        identifier_code: paymentForm.identifierCode,
         details_fingerprint: detailsFingerprint
       });
 
@@ -337,7 +355,7 @@ function App() {
     }
   }
 
-  async function handleAddRide(useCurrentTime: boolean) {
+  async function handleAddRide() {
     if (!token || !selectedMethodId) {
       return;
     }
@@ -349,10 +367,9 @@ function App() {
     }
 
     try {
-      const timestamp = useCurrentTime
-        ? undefined
-        : manualRideTimestamp
-          ? new Date(manualRideTimestamp).toISOString()
+      const manualTimestamp =
+        rideTimingMode === "manual" && manualRideDate && manualRideTime
+          ? new Date(`${manualRideDate}T${manualRideTime}`).toISOString()
           : undefined;
       await api.createRide(token, {
         payment_method_id: selectedMethodId,
@@ -360,9 +377,12 @@ function App() {
         transit_line: rideForm.transitLine,
         entry_stop: rideForm.entryStop,
         exit_stop: rideForm.exitStop,
-        ...(timestamp ? { timestamp } : {})
+        ...(manualTimestamp ? { timestamp: manualTimestamp } : {})
       });
-      setManualRideTimestamp("");
+      const nextManualDateTime = createManualRideDateTime();
+      setRideTimingMode("now");
+      setManualRideDate(nextManualDateTime.date);
+      setManualRideTime(nextManualDateTime.time);
       setRideForm((current) => ({ ...emptyRideForm, transitMode: current.transitMode }));
       await loadDashboard(token);
       const status = await api.getFareStatus(token, selectedMethodId);
@@ -514,31 +534,26 @@ function App() {
                   ))}
                 </select>
               </label>
-              <label className="full-span">
-                Cardholder name
-                <input
-                  value={paymentForm.cardholderName}
-                  onChange={(event) => updatePaymentForm("cardholderName", event.target.value)}
-                  placeholder="Name on card"
-                  required
-                />
-              </label>
               <label>
-                Last 4 digits
+                4-digit identifier code
                 <input
                   type={showPaymentDetails ? "text" : "password"}
                   inputMode="numeric"
-                  value={paymentForm.last4}
-                  onChange={(event) => updatePaymentForm("last4", formatLast4(event.target.value))}
-                  placeholder="4242"
+                  value={paymentForm.identifierCode}
+                  onChange={(event) =>
+                    updatePaymentForm("identifierCode", format4DigitCode(event.target.value))
+                  }
+                  placeholder="4821"
                   required
                 />
               </label>
             </div>
             <p className="muted helper-copy">
-              TapWise stores only payment type, cardholder name, last 4, and a
-              one-way fingerprint. Full card number, CVV, expiry, and ZIP are not
-              collected at all.
+              Please enter a 4-digit identifier code for this card or device. Do not
+              enter the last 4 digits of your card number. Create your own code and
+              name the payment method accordingly, such as "Work Visa" with code
+              "4821". TapWise does not store, want, or need your actual card
+              information to track rides and fare caps.
             </p>
             <button type="submit" className="primary-button">
               Save payment method
@@ -568,7 +583,7 @@ function App() {
           {selectedMethod ? (
             <div className="detail-chip-row">
               <span className="detail-chip">{selectedMethod.payment_type.replace("_", " ").toUpperCase()}</span>
-              <span className="detail-chip">Cardholder: {selectedMethod.cardholder_name}</span>
+              <span className="detail-chip">Code: {selectedMethod.identifier_code}</span>
             </div>
           ) : null}
         </article>
@@ -635,26 +650,54 @@ function App() {
                 </select>
               </label>
             </div>
-            <button
-              className="primary-button"
-              onClick={() => void handleAddRide(true)}
-              disabled={!selectedMethodId}
-            >
-              Add ride now
-            </button>
-            <div className="inline-form">
-              <input
-                type="datetime-local"
-                value={manualRideTimestamp}
-                onChange={(event) => setManualRideTimestamp(event.target.value)}
-              />
+            <div className="timing-panel">
+              <div className="mode-toggle ride-timing-toggle">
+                <button
+                  type="button"
+                  className={rideTimingMode === "now" ? "active" : ""}
+                  onClick={() => setRideTimingMode("now")}
+                >
+                  Ride happened now
+                </button>
+                <button
+                  type="button"
+                  className={rideTimingMode === "manual" ? "active" : ""}
+                  onClick={() => setRideTimingMode("manual")}
+                >
+                  Pick date and time
+                </button>
+              </div>
+              {rideTimingMode === "manual" ? (
+                <div className="manual-time-grid">
+                  <label>
+                    Ride date
+                    <input
+                      type="date"
+                      value={manualRideDate}
+                      onChange={(event) => setManualRideDate(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Ride time
+                    <input
+                      type="time"
+                      value={manualRideTime}
+                      onChange={(event) => setManualRideTime(event.target.value)}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <p className="muted helper-copy">
+                  Tap save to log this ride with the current local date and time.
+                </p>
+              )}
               <button
-                className="secondary-button"
-                onClick={() => void handleAddRide(false)}
+                className={rideTimingMode === "now" ? "primary-button" : "secondary-button"}
+                onClick={() => void handleAddRide()}
                 type="button"
                 disabled={!selectedMethodId}
               >
-                Save manual ride
+                {rideTimingMode === "now" ? "Add ride now" : "Save dated ride"}
               </button>
             </div>
           </div>

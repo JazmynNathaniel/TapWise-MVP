@@ -12,8 +12,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 type PaymentMethodPayload = {
   label: string;
   payment_type: string;
-  cardholder_name: string;
-  last4: string;
+  identifier_code: string;
   details_fingerprint: string;
 };
 

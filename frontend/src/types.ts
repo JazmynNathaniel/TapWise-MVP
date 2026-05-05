@@ -12,8 +12,7 @@ export type PaymentMethod = {
   id: number;
   label: string;
   payment_type: string;
-  cardholder_name: string;
-  last4: string;
+  identifier_code: string;
   masked_details: string;
   created_at: string;
 };

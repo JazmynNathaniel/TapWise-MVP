@@ -29,6 +29,10 @@ def _ensure_payment_method_columns() -> None:
         statements.append(
             "ALTER TABLE payment_methods ADD COLUMN last4 VARCHAR(4) NOT NULL DEFAULT '0000'"
         )
+    if "identifier_code" not in existing_columns:
+        statements.append(
+            "ALTER TABLE payment_methods ADD COLUMN identifier_code VARCHAR(4) NOT NULL DEFAULT '0000'"
+        )
     if "details_fingerprint" not in existing_columns:
         statements.append(
             "ALTER TABLE payment_methods ADD COLUMN details_fingerprint VARCHAR(64) NOT NULL DEFAULT ''"
@@ -37,6 +41,16 @@ def _ensure_payment_method_columns() -> None:
     for statement in statements:
         db.session.execute(text(statement))
     if statements:
+        db.session.commit()
+
+    if "identifier_code" not in existing_columns and "last4" in existing_columns:
+        db.session.execute(
+            text(
+                "UPDATE payment_methods SET identifier_code = last4 "
+                "WHERE (identifier_code = '0000' OR identifier_code = '') "
+                "AND last4 <> ''"
+            )
+        )
         db.session.commit()
 
 

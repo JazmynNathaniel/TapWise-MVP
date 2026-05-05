@@ -18,13 +18,13 @@ ALLOWED_PAYMENT_TYPES = {
 
 
 def _serialize_payment_method(payment_method: PaymentMethod) -> dict:
+    identifier_code = payment_method.identifier_code or payment_method.last4
     return {
         "id": payment_method.id,
         "label": payment_method.label,
         "payment_type": payment_method.payment_type,
-        "cardholder_name": payment_method.cardholder_name,
-        "last4": payment_method.last4,
-        "masked_details": f"{payment_method.payment_type.replace('_', ' ').title()} ending in {payment_method.last4}",
+        "identifier_code": identifier_code,
+        "masked_details": f"{payment_method.payment_type.replace('_', ' ').title()} code {identifier_code}",
         "created_at": payment_method.created_at.isoformat(),
     }
 
@@ -49,18 +49,15 @@ def create_payment_method():
     payload = request.get_json() or {}
     label = (payload.get("label") or "").strip()
     payment_type = (payload.get("payment_type") or "").strip().lower()
-    cardholder_name = (payload.get("cardholder_name") or "").strip()
-    last4 = (payload.get("last4") or "").strip()
+    identifier_code = (payload.get("identifier_code") or "").strip()
     details_fingerprint = (payload.get("details_fingerprint") or "").strip().lower()
 
     if not label:
         return jsonify({"error": "Payment method name is required."}), 400
     if payment_type not in ALLOWED_PAYMENT_TYPES:
         return jsonify({"error": "A valid payment type is required."}), 400
-    if not cardholder_name:
-        return jsonify({"error": "Cardholder name is required."}), 400
-    if len(last4) != 4 or not last4.isdigit():
-        return jsonify({"error": "Only the last 4 digits may be stored."}), 400
+    if len(identifier_code) != 4 or not identifier_code.isdigit():
+        return jsonify({"error": "A 4-digit identifier code is required."}), 400
     if len(details_fingerprint) != 64 or any(
         character not in "0123456789abcdef" for character in details_fingerprint
     ):
@@ -70,8 +67,9 @@ def create_payment_method():
         user_id=user_id,
         label=label,
         payment_type=payment_type,
-        cardholder_name=cardholder_name,
-        last4=last4,
+        cardholder_name="",
+        last4="0000",
+        identifier_code=identifier_code,
         details_fingerprint=details_fingerprint,
     )
     db.session.add(payment_method)

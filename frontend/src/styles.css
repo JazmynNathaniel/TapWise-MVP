@@ -244,6 +244,25 @@ select {
   font-size: 0.95rem;
 }
 
+.timing-panel {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+  border-radius: 22px;
+  border: 1px solid rgba(244, 239, 231, 0.1);
+  background: rgba(244, 239, 231, 0.04);
+}
+
+.ride-timing-toggle {
+  width: fit-content;
+}
+
+.manual-time-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
 .ghost-button {
   white-space: nowrap;
 }
@@ -328,5 +347,11 @@ label {
   .inline-form {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .ride-timing-toggle,
+  .manual-time-grid {
+    width: 100%;
+    grid-template-columns: 1fr;
   }
 }
