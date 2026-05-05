@@ -8,33 +8,45 @@ from ..models import User
 auth_bp = Blueprint("auth", __name__)
 
 
+def _serialize_user(user: User) -> dict:
+    return {"id": user.id, "email": user.email, "username": user.username}
+
+
+def _normalize_username(raw_value: str) -> str:
+    return (raw_value or "").strip().lower()
+
+
 @auth_bp.post("/register")
 def register():
     payload = request.get_json() or {}
     email = (payload.get("email") or "").strip().lower()
+    username = _normalize_username(payload.get("username") or "")
     password = payload.get("password") or ""
 
-    if not email or not password:
-        return jsonify({"error": "Email and password are required."}), 400
+    if not username or not email or not password:
+        return jsonify({"error": "Username, email, and password are required."}), 400
+    if len(username) < 3 or len(username) > 30:
+        return jsonify({"error": "Username must be between 3 and 30 characters."}), 400
+    if any(character not in "abcdefghijklmnopqrstuvwxyz0123456789_" for character in username):
+        return jsonify({"error": "Username may contain only letters, numbers, and underscores."}), 400
 
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
         return jsonify({"error": "Email already registered."}), 409
+    existing_username = User.query.filter_by(username=username).first()
+    if existing_username:
+        return jsonify({"error": "Username already taken."}), 409
 
-    user = User(email=email, password_hash=generate_password_hash(password))
+    user = User(
+        email=email,
+        username=username,
+        password_hash=generate_password_hash(password),
+    )
     db.session.add(user)
     db.session.commit()
 
     access_token = create_access_token(identity=str(user.id))
-    return (
-        jsonify(
-            {
-                "token": access_token,
-                "user": {"id": user.id, "email": user.email},
-            }
-        ),
-        201,
-    )
+    return jsonify({"token": access_token, "user": _serialize_user(user)}), 201
 
 
 @auth_bp.post("/login")
@@ -48,4 +60,4 @@ def login():
         return jsonify({"error": "Invalid credentials."}), 401
 
     access_token = create_access_token(identity=str(user.id))
-    return jsonify({"token": access_token, "user": {"id": user.id, "email": user.email}})
+    return jsonify({"token": access_token, "user": _serialize_user(user)})

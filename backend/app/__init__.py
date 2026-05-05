@@ -1,4 +1,5 @@
 import os
+import re
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
@@ -6,10 +7,57 @@ from sqlalchemy import inspect, text
 
 from .config import Config
 from .extensions import cors, db, jwt
+from .models import User
 from .routes.auth import auth_bp
 from .routes.insights import insights_bp
 from .routes.payment_methods import payment_methods_bp
 from .routes.rides import rides_bp
+
+
+def _generate_unique_username(email: str, existing_usernames: set[str]) -> str:
+    local_part = email.split("@", 1)[0].strip().lower()
+    base = re.sub(r"[^a-z0-9_]+", "_", local_part).strip("_")[:24] or "tapwise_user"
+    candidate = base
+    suffix = 2
+
+    while candidate in existing_usernames:
+        candidate = f"{base[:24]}_{suffix}"[:30]
+        suffix += 1
+
+    existing_usernames.add(candidate)
+    return candidate
+
+
+def _ensure_user_columns() -> None:
+    inspector = inspect(db.engine)
+    existing_columns = {column["name"] for column in inspector.get_columns("users")}
+    statements = []
+
+    if "username" not in existing_columns:
+        statements.append(
+            "ALTER TABLE users ADD COLUMN username VARCHAR(40) NOT NULL DEFAULT ''"
+        )
+
+    for statement in statements:
+        db.session.execute(text(statement))
+    if statements:
+        db.session.commit()
+
+    if "username" not in existing_columns:
+        users = User.query.order_by(User.id.asc()).all()
+        existing_usernames = {
+            user.username.strip().lower() for user in users if user.username.strip()
+        }
+        updated = False
+
+        for user in users:
+            if user.username.strip():
+                continue
+            user.username = _generate_unique_username(user.email, existing_usernames)
+            updated = True
+
+        if updated:
+            db.session.commit()
 
 
 def _ensure_payment_method_columns() -> None:
@@ -120,6 +168,7 @@ def create_app() -> Flask:
 
     with app.app_context():
         db.create_all()
+        _ensure_user_columns()
         _ensure_payment_method_columns()
         _ensure_ride_columns()
 

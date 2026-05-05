@@ -11,6 +11,7 @@ import {
 
 const TOKEN_KEY = "tapwise_token";
 const USER_KEY = "tapwise_user";
+const HAS_AUTHENTICATED_BEFORE_KEY = "tapwise_has_authenticated_before";
 const PAYMENT_TYPE_OPTIONS = [
   { value: "visa", label: "Visa" },
   { value: "mastercard", label: "Mastercard" },
@@ -58,6 +59,27 @@ function formatDate(value: string | null) {
   }
 
   return new Date(value).toLocaleString();
+}
+
+function deriveUsernameFromEmail(email: string) {
+  return email.split("@", 1)[0] || "there";
+}
+
+function hydrateStoredUser(rawValue: string | null): User | null {
+  if (!rawValue) {
+    return null;
+  }
+
+  const parsed = JSON.parse(rawValue) as Partial<User>;
+  if (!parsed.id || !parsed.email) {
+    return null;
+  }
+
+  return {
+    id: parsed.id,
+    email: parsed.email,
+    username: parsed.username || deriveUsernameFromEmail(parsed.email)
+  };
 }
 
 function digitsOnly(value: string) {
@@ -126,13 +148,15 @@ async function sha256Hex(value: string) {
 
 function App() {
   const [mode, setMode] = useState<AuthMode>("register");
+  const [username, setUsername] = useState("tapwise_rider");
   const [email, setEmail] = useState("demo@tapwise.app");
   const [password, setPassword] = useState("password123");
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
-  const [user, setUser] = useState<User | null>(() => {
-    const raw = localStorage.getItem(USER_KEY);
-    return raw ? (JSON.parse(raw) as User) : null;
-  });
+  const [user, setUser] = useState<User | null>(() => hydrateStoredUser(localStorage.getItem(USER_KEY)));
+  const [hasAuthenticatedBefore, setHasAuthenticatedBefore] = useState(
+    () => localStorage.getItem(HAS_AUTHENTICATED_BEFORE_KEY) === "true"
+  );
+  const [isFirstAuthenticatedSession, setIsFirstAuthenticatedSession] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [rides, setRides] = useState<Ride[]>([]);
   const [selectedMethodId, setSelectedMethodId] = useState<number | null>(null);
@@ -259,13 +283,19 @@ function App() {
       setAuthError("");
       const response =
         mode === "register"
-          ? await api.register(email, password)
+          ? await api.register(username.trim().toLowerCase(), email, password)
           : await api.login(email, password);
+      const firstAuthenticatedSession = !hasAuthenticatedBefore;
 
       localStorage.setItem(TOKEN_KEY, response.token);
       localStorage.setItem(USER_KEY, JSON.stringify(response.user));
+      localStorage.setItem(HAS_AUTHENTICATED_BEFORE_KEY, "true");
       setToken(response.token);
       setUser(response.user);
+      setIsFirstAuthenticatedSession(firstAuthenticatedSession);
+      if (!hasAuthenticatedBefore) {
+        setHasAuthenticatedBefore(true);
+      }
       const options = await api.getTransitOptions(response.token);
       setTransitOptions(options);
     } catch (error) {
@@ -423,6 +453,17 @@ function App() {
           </div>
 
           <form onSubmit={handleAuthSubmit} className="stack">
+            {mode === "register" ? (
+              <label>
+                Username
+                <input
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  placeholder="tapwise_rider"
+                  required
+                />
+              </label>
+            ) : null}
             <label>
               Email
               <input
@@ -467,7 +508,9 @@ function App() {
       <header className="topbar">
         <div>
           <p className="eyebrow">TapWise Dashboard</p>
-          <h1>Welcome back, {user.email}</h1>
+          <h1>
+            {isFirstAuthenticatedSession ? "Welcome to TapWise!" : `Welcome back, ${user.username}`}
+          </h1>
         </div>
         <button onClick={handleLogout} className="secondary-button">
           Logout
