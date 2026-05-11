@@ -1,0 +1,24 @@
+databases:
+  - name: tapwise-db
+    databaseName: tapwise
+    user: tapwise
+
+services:
+  - type: web
+    name: tapwise-api
+    env: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn run:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tapwise-db
+          property: connectionString
+      - key: CLIENT_ORIGIN
+        sync: false

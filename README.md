@@ -86,11 +86,19 @@ custom `vercel.json` rewrite is not required right now.
 `CLIENT_ORIGIN` also accepts a comma-separated list if you need to allow both your production
 Vercel domain and a preview or staging frontend.
 
+This repo also includes [render.yaml](/abs/path/C:/Users/Jonathan/Fare_TrackerMVP/render.yaml:1) as a Render Blueprint starter for provisioning the backend service and a PostgreSQL database together.
+
 ### Database
 
 - Use PostgreSQL in production.
 - If you use Render Postgres, set the backend `DATABASE_URL` to the connection string Render
   provides for that database.
+
+## VS Code
+
+The repo includes [.vscode/settings.json](/abs/path/C:/Users/Jonathan/Fare_TrackerMVP/.vscode/settings.json:1) to point the Python extension at `backend/.venv`, load `backend/.env`, and make backend imports easier for analysis.
+
+If your editor still shows missing Flask package imports, re-select the interpreter manually and choose the Python environment inside `backend/.venv`.
 
 ## API Endpoints
 
