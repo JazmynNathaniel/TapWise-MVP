@@ -58,6 +58,40 @@ npm install
 npm run dev
 ```
 
+## Deployment
+
+### Frontend on Vercel
+
+- Root directory: `frontend`
+- Build command: `npm run build`
+- Output directory: `dist`
+- Environment variable:
+  - `VITE_API_BASE_URL=https://<your-render-service>.onrender.com/api`
+
+This frontend does not currently use client-side routed URLs beyond the main app entry, so a
+custom `vercel.json` rewrite is not required right now.
+
+### Backend on Render
+
+- Service type: Web Service
+- Root directory: `backend`
+- Build command: `pip install -r requirements.txt`
+- Start command: `gunicorn run:app --bind 0.0.0.0:$PORT`
+- Environment variables:
+  - `SECRET_KEY`
+  - `JWT_SECRET_KEY`
+  - `DATABASE_URL`
+  - `CLIENT_ORIGIN=https://<your-vercel-domain>`
+
+`CLIENT_ORIGIN` also accepts a comma-separated list if you need to allow both your production
+Vercel domain and a preview or staging frontend.
+
+### Database
+
+- Use PostgreSQL in production.
+- If you use Render Postgres, set the backend `DATABASE_URL` to the connection string Render
+  provides for that database.
+
 ## API Endpoints
 
 - `POST /api/auth/register`

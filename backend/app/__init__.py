@@ -14,6 +14,14 @@ from .routes.payment_methods import payment_methods_bp
 from .routes.rides import rides_bp
 
 
+def _parse_allowed_origins(raw_value: str | None) -> set[str]:
+    return {
+        origin.strip().rstrip("/")
+        for origin in (raw_value or "").split(",")
+        if origin.strip()
+    }
+
+
 def _generate_unique_username(email: str, existing_usernames: set[str]) -> str:
     local_part = email.split("@", 1)[0].strip().lower()
     base = re.sub(r"[^a-z0-9_]+", "_", local_part).strip("_")[:24] or "tapwise_user"
@@ -135,10 +143,7 @@ def create_app() -> Flask:
 
     app = Flask(__name__)
     app.config.from_object(Config)
-    allowed_origins = {
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    }
+    allowed_origins = _parse_allowed_origins(app.config.get("CLIENT_ORIGIN"))
 
     db.init_app(app)
     jwt.init_app(app)
@@ -156,7 +161,7 @@ def create_app() -> Flask:
     @app.after_request
     def apply_cors_headers(response):
         if request.path.startswith("/api/"):
-            origin = request.headers.get("Origin")
+            origin = (request.headers.get("Origin") or "").rstrip("/")
             if origin in allowed_origins:
                 response.headers["Access-Control-Allow-Origin"] = origin
                 response.headers["Vary"] = "Origin"
