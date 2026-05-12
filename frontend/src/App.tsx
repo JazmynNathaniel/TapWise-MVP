@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState, type CSSProperties } from "react";
 import { api } from "./api";
 import {
   FareStatus,
@@ -12,6 +12,8 @@ import {
 const TOKEN_KEY = "tapwise_token";
 const USER_KEY = "tapwise_user";
 const HAS_AUTHENTICATED_BEFORE_KEY = "tapwise_has_authenticated_before";
+const THEME_KEY = "tapwise_theme";
+const FARE_CAP_RIDES = 12;
 const PAYMENT_TYPE_OPTIONS = [
   { value: "visa", label: "Visa" },
   { value: "mastercard", label: "Mastercard" },
@@ -24,6 +26,7 @@ const PAYMENT_TYPE_OPTIONS = [
 ];
 
 type AuthMode = "login" | "register";
+type ThemeMode = "dark" | "light";
 
 type PaymentFormState = {
   label: string;
@@ -59,6 +62,104 @@ function formatDate(value: string | null) {
   }
 
   return new Date(value).toLocaleString();
+}
+
+function formatShortDate(value: string | null) {
+  if (!value) {
+    return "No rides yet";
+  }
+
+  return new Date(value).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function getPaymentTypeLabel(value: string) {
+  return PAYMENT_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value;
+}
+
+function formatPaymentType(value: string) {
+  return getPaymentTypeLabel(value).toUpperCase();
+}
+
+function getStoredTheme(): ThemeMode {
+  return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
+}
+
+function NycBackdrop() {
+  return (
+    <div className="nyc-backdrop" aria-hidden="true">
+      <div className="route-line-map">
+        <span className="route-line route-line-blue" />
+        <span className="route-line route-line-orange" />
+        <span className="route-line route-line-green" />
+        <span className="route-line route-line-yellow" />
+      </div>
+
+      <svg className="liberty-visual" viewBox="0 0 160 260" role="img">
+        <path className="liberty-glow" d="M71 31 88 31 93 61 119 76 97 84 112 109 88 99 82 130 70 130 64 99 40 109 55 84 33 76 59 61Z" />
+        <path className="liberty-flame" d="M74 4c11 15 7 29-6 40 2-14-9-21 6-40Z" />
+        <path className="liberty-torch" d="M66 36h14l-2 75H68Z" />
+        <path className="liberty-arm" d="M72 98c-19 10-28 32-29 66h18c1-23 7-38 20-46Z" />
+        <path className="liberty-body" d="M59 122h44l12 116H47Z" />
+        <path className="liberty-face" d="M66 77h31l-4 31H70Z" />
+        <path className="liberty-crown" d="M63 77 72 48 77 75 85 44 89 75 104 50 96 81Z" />
+        <path className="liberty-base" d="M35 238h92l11 19H24Z" />
+      </svg>
+
+      <svg className="bridge-visual" viewBox="0 0 640 260" role="img">
+        <path className="bridge-deck" d="M18 192h604" />
+        <path className="bridge-cable" d="M22 186C133 58 238 58 320 186C402 58 507 58 618 186" />
+        <path className="bridge-cable secondary" d="M20 207C136 110 240 110 320 207C400 110 504 110 620 207" />
+        <path className="bridge-tower" d="M146 190V72h58v118M436 190V72h58v118" />
+        <path className="bridge-arch" d="M156 129h38M446 129h38" />
+        <path className="bridge-arch" d="M156 94h38M446 94h38" />
+        {Array.from({ length: 19 }, (_, index) => (
+          <path
+            key={index}
+            className="bridge-suspender"
+            d={`M${48 + index * 30} ${192}V${134 + Math.abs(9 - index) * 6}`}
+          />
+        ))}
+      </svg>
+
+      <div className="skyline-strip">
+        {Array.from({ length: 18 }, (_, index) => (
+          <span key={index} style={{ "--height": `${42 + (index % 6) * 16}px` } as CSSProperties} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ThemeToggle({
+  theme,
+  onThemeChange
+}: {
+  theme: ThemeMode;
+  onThemeChange: (theme: ThemeMode) => void;
+}) {
+  return (
+    <div className="theme-toggle" role="group" aria-label="Color theme">
+      <button
+        type="button"
+        className={theme === "dark" ? "active" : ""}
+        onClick={() => onThemeChange("dark")}
+      >
+        Night
+      </button>
+      <button
+        type="button"
+        className={theme === "light" ? "active" : ""}
+        onClick={() => onThemeChange("light")}
+      >
+        Day
+      </button>
+    </div>
+  );
 }
 
 function deriveUsernameFromEmail(email: string) {
@@ -147,6 +248,7 @@ async function sha256Hex(value: string) {
 }
 
 function App() {
+  const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
   const [mode, setMode] = useState<AuthMode>("register");
   const [username, setUsername] = useState("tapwise_rider");
   const [email, setEmail] = useState("demo@tapwise.app");
@@ -172,6 +274,11 @@ function App() {
   const [authError, setAuthError] = useState("");
   const [appError, setAppError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!token) {
@@ -424,17 +531,67 @@ function App() {
 
   if (!token || !user) {
     return (
-      <main className="shell auth-shell">
-        <section className="hero-card">
-          <p className="eyebrow">TapWise</p>
-          <h1>NYC fare optimization for OMNY riders.</h1>
+      <main className="auth-page">
+        <NycBackdrop />
+        <section className="auth-copy" aria-labelledby="auth-title">
+          <div className="brand-lockup">
+            <span className="brand-mark">TW</span>
+            <div>
+              <p className="brand-name">TapWise</p>
+              <p className="brand-caption">New York City transit</p>
+            </div>
+          </div>
+          <div className="route-badge-row" aria-label="NYC subway route accents">
+            <span className="route-badge route-a">A</span>
+            <span className="route-badge route-four">4</span>
+            <span className="route-badge route-n">N</span>
+            <span className="route-badge route-l">L</span>
+          </div>
+          <h1 id="auth-title">Know which tap gets you to free rides faster.</h1>
           <p className="lede">
-            Track rides by card or device, model the 7-day cap window, and know
-            which payment method gets you to free rides fastest.
+            Track subway and bus rides by card or device, compare active 7-day
+            windows, and keep every payment method moving toward the weekly cap.
           </p>
+
+          <div className="auth-stat-grid" aria-label="TapWise fare tracking summary">
+            <div>
+              <strong>12</strong>
+              <span>paid rides to cap</span>
+            </div>
+            <div>
+              <strong>7 days</strong>
+              <span>per payment window</span>
+            </div>
+            <div>
+              <strong>1 tap</strong>
+              <span>recommended per ride</span>
+            </div>
+          </div>
+
+          <div className="fare-preview" aria-label="Example fare cap progress">
+            <div className="fare-preview-header">
+              <span>Work Visa</span>
+              <strong>8 / 12 rides</strong>
+            </div>
+            <div className="fare-preview-meter">
+              <span />
+            </div>
+            <div className="fare-preview-footer">
+              <span>4 rides left</span>
+              <span>Window ends Friday</span>
+            </div>
+          </div>
         </section>
 
-        <section className="panel auth-panel">
+        <section className="auth-panel" aria-label="TapWise account access">
+          <div className="auth-panel-top">
+            <div className="auth-panel-heading">
+              <p className="eyebrow">Account</p>
+              <h2>{mode === "register" ? "Create your tracker" : "Welcome back"}</h2>
+            </div>
+            <ThemeToggle theme={theme} onThemeChange={setTheme} />
+          </div>
+
           <div className="mode-toggle">
             <button
               type="button"
@@ -501,31 +658,70 @@ function App() {
       : [];
 
   const selectedMethod = paymentMethods.find((method) => method.id === selectedMethodId) ?? null;
-  const progress = fareStatus ? (fareStatus.rides_taken / 12) * 100 : 0;
+  const ridesTaken = fareStatus?.rides_taken ?? 0;
+  const ridesRemaining = fareStatus?.rides_remaining ?? FARE_CAP_RIDES;
+  const progress = Math.min(100, fareStatus ? (ridesTaken / FARE_CAP_RIDES) * 100 : 0);
+  const latestRide = rides[0] ?? null;
 
   return (
     <main className="shell dashboard-shell">
+      <NycBackdrop />
       <header className="topbar">
-        <div>
-          <p className="eyebrow">TapWise Dashboard</p>
+        <div className="topbar-title">
+          <div className="brand-lockup compact">
+            <span className="brand-mark">TW</span>
+            <div>
+              <p className="brand-name">TapWise</p>
+              <p className="brand-caption">New York City transit</p>
+            </div>
+          </div>
           <h1>
             {isFirstAuthenticatedSession ? "Welcome to TapWise!" : `Welcome back, ${user.username}`}
           </h1>
         </div>
-        <button onClick={handleLogout} className="secondary-button">
-          Logout
-        </button>
+        <div className="topbar-actions">
+          <ThemeToggle theme={theme} onThemeChange={setTheme} />
+          <span className="user-pill">{user.email}</span>
+          <button onClick={handleLogout} className="secondary-button">
+            Logout
+          </button>
+        </div>
       </header>
 
       {appError ? <div className="banner error">{appError}</div> : null}
 
+      <section className="status-strip" aria-label="TapWise account summary">
+        <div className="stat-tile">
+          <span>Payment methods</span>
+          <strong>{paymentMethods.length}</strong>
+        </div>
+        <div className="stat-tile">
+          <span>Current window</span>
+          <strong>{ridesTaken} / {FARE_CAP_RIDES}</strong>
+        </div>
+        <div className="stat-tile">
+          <span>Rides left</span>
+          <strong>{fareStatus?.free_rides_active ? "0" : ridesRemaining}</strong>
+        </div>
+        <div className="stat-tile">
+          <span>Latest ride</span>
+          <strong>{formatShortDate(latestRide?.timestamp ?? null)}</strong>
+        </div>
+      </section>
+
       <section className="grid">
         <article className="panel recommendation-panel">
-          <p className="panel-label">Recommendation</p>
-          <h2>{recommendation?.message ?? "Loading recommendation..."}</h2>
-          <p className="muted">
-            {recommendation?.warning ?? "TapWise recalculates this after every ride."}
-          </p>
+          <div>
+            <p className="panel-label">Best next tap</p>
+            <h2>{recommendation?.message ?? "Loading recommendation..."}</h2>
+            <p className="muted">
+              {recommendation?.warning ?? "TapWise recalculates this after every ride."}
+            </p>
+          </div>
+          <div className="recommendation-badge">
+            <span>{recommendation?.estimated_rides_until_free ?? ridesRemaining}</span>
+            <small>rides until free</small>
+          </div>
         </article>
 
         <article className="panel payment-panel">
@@ -540,17 +736,25 @@ function App() {
             </button>
           </div>
 
-          <div className="selector-list method-list">
+          <div className="method-list">
             {paymentMethods.map((method) => (
               <button
                 key={method.id}
-                className={method.id === selectedMethodId ? "selector active selector-card" : "selector selector-card"}
+                className={
+                  method.id === selectedMethodId
+                    ? "selector active selector-card"
+                    : "selector selector-card"
+                }
                 onClick={() => setSelectedMethodId(method.id)}
               >
+                <span className="method-type">{getPaymentTypeLabel(method.payment_type)}</span>
                 <strong>{method.label}</strong>
-                <span>{method.masked_details}</span>
+                <span className="method-details">{method.masked_details}</span>
               </button>
             ))}
+            {paymentMethods.length === 0 ? (
+              <p className="empty-state">Add your first card or device to start tracking rides.</p>
+            ) : null}
           </div>
 
           <form onSubmit={handleCreatePaymentMethod} className="payment-form">
@@ -605,34 +809,50 @@ function App() {
         </article>
 
         <article className="panel progress-panel">
-          <p className="panel-label">Fare Cap Status</p>
-          <h2>
-            {fareStatus?.free_rides_active
-              ? "Free rides active"
-              : `${fareStatus?.rides_remaining ?? 12} rides left`}
-          </h2>
+          <div className="progress-heading">
+            <div>
+              <p className="panel-label">Fare cap status</p>
+              <h2>
+                {fareStatus?.free_rides_active
+                  ? "Free rides active"
+                  : `${ridesRemaining} rides left`}
+              </h2>
+            </div>
+            <strong>{Math.round(progress)}%</strong>
+          </div>
           <p className="muted">
             {selectedMethod
               ? `Tracking ${selectedMethod.label} (${selectedMethod.masked_details})`
               : "Select a payment method to see status."}
           </p>
-          <div className="progress-track">
+          <div
+            className="progress-track"
+            aria-label={`${ridesTaken} of ${FARE_CAP_RIDES} paid rides completed`}
+          >
             <div className="progress-fill" style={{ width: `${progress}%` }} />
           </div>
           <div className="progress-meta">
-            <span>{fareStatus?.rides_taken ?? 0} / 12 paid rides</span>
+            <span>{ridesTaken} / {FARE_CAP_RIDES} paid rides</span>
             <span>Window ends {formatDate(fareStatus?.window_end ?? null)}</span>
           </div>
           {selectedMethod ? (
             <div className="detail-chip-row">
-              <span className="detail-chip">{selectedMethod.payment_type.replace("_", " ").toUpperCase()}</span>
+              <span className="detail-chip">{formatPaymentType(selectedMethod.payment_type)}</span>
               <span className="detail-chip">Code: {selectedMethod.identifier_code}</span>
             </div>
           ) : null}
         </article>
 
-        <article className="panel">
-          <p className="panel-label">Ride Logging</p>
+        <article className="panel ride-logging-panel">
+          <div className="panel-header-row">
+            <div>
+              <p className="panel-label">Ride logging</p>
+              <h2>Add a trip</h2>
+            </div>
+            <span className="selected-method-pill">
+              {selectedMethod ? selectedMethod.label : "No payment selected"}
+            </span>
+          </div>
           <div className="ride-actions">
             <div className="form-grid">
               <label>
@@ -747,23 +967,33 @@ function App() {
         </article>
 
         <article className="panel ride-history">
-          <p className="panel-label">Ride History</p>
+          <div className="panel-header-row">
+            <div>
+              <p className="panel-label">Ride history</p>
+              <h2>{rides.length} logged rides</h2>
+            </div>
+          </div>
           {loading ? <p className="muted">Loading rides...</p> : null}
           <div className="ride-list">
             {rides.map((ride) => (
               <div className="ride-row" key={ride.id}>
                 <div>
-                  <strong>{ride.payment_method_label}</strong>
-                  <p>{formatDate(ride.timestamp)}</p>
+                  <div className="ride-row-title">
+                    <strong>{ride.payment_method_label}</strong>
+                    <span>{formatShortDate(ride.timestamp)}</span>
+                  </div>
                   <p>
-                    {ride.transit_mode.toUpperCase()} {ride.transit_line}: {ride.entry_stop} to{" "}
-                    {ride.exit_stop}
+                    {ride.entry_stop} to {ride.exit_stop}
                   </p>
                 </div>
-                <span>Ride #{ride.id}</span>
+                <span className="route-chip">
+                  {ride.transit_mode.toUpperCase()} {ride.transit_line}
+                </span>
               </div>
             ))}
-            {rides.length === 0 ? <p className="muted">No rides logged yet.</p> : null}
+            {rides.length === 0 ? (
+              <p className="empty-state">No rides logged yet. Add a trip to see history here.</p>
+            ) : null}
           </div>
         </article>
       </section>
