@@ -7,7 +7,13 @@ import {
   TransitOptions
 } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
+function normalizeApiBase(rawValue?: string) {
+  const value = (rawValue || "/api").replace(/\/+$/, "");
+
+  return value.endsWith("/api") ? value : `${value}/api`;
+}
+
+const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE_URL);
 
 type PaymentMethodPayload = {
   label: string;
