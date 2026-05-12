@@ -541,10 +541,7 @@ function App() {
               <p className="brand-caption">New York City transit</p>
             </div>
           </div>
-          <h1 id="auth-title" className="wordmark-title" aria-label="TapWise">
-            T<span className="route-letter route-a" aria-hidden="true">A</span>pWis
-            <span className="route-letter route-e" aria-hidden="true">E</span>
-          </h1>
+          <h1 id="auth-title">TapWise</h1>
           <p className="auth-tagline">Know which tap gets you to free rides faster.</p>
           <p className="lede">
             Track subway and bus rides by card or device, compare active 7-day
