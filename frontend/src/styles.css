@@ -767,6 +767,18 @@ p {
   letter-spacing: 0.08em;
 }
 
+.transfer-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.transfer-toggle-button {
+  white-space: nowrap;
+}
+
 .selector-list,
 .inline-form,
 .progress-meta {
@@ -1075,8 +1087,14 @@ p {
     justify-content: flex-start;
   }
 
+  .transfer-controls,
+  .transfer-toggle-button,
   .transfer-timer {
     width: 100%;
+  }
+
+  .transfer-controls {
+    justify-content: stretch;
   }
 }
 

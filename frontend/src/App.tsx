@@ -13,6 +13,7 @@ const TOKEN_KEY = "tapwise_token";
 const USER_KEY = "tapwise_user";
 const HAS_AUTHENTICATED_BEFORE_KEY = "tapwise_has_authenticated_before";
 const THEME_KEY = "tapwise_theme";
+const SILENCED_TRANSFER_NOTIFICATIONS_KEY = "tapwise_silenced_transfer_notifications";
 const FARE_CAP_RIDES = 12;
 const TRANSFER_WINDOW_SECONDS = 2 * 60 * 60;
 const TRANSFER_REMINDER_SECONDS = 30 * 60;
@@ -56,6 +57,13 @@ type ActiveTransferNotice = {
   secondsRemaining: number;
   isSelectedMethod: boolean;
 };
+
+function getTransferNoticeKey(notice: ActiveTransferNotice) {
+  return [
+    notice.paymentMethodId,
+    notice.sourceRideId ?? notice.startedAt ?? notice.expiresAt
+  ].join(":");
+}
 
 const emptyPaymentForm: PaymentFormState = {
   label: "",
@@ -189,6 +197,31 @@ function buildTransferReminderMessage(notice: ActiveTransferNotice, reminderBuck
   }
 
   return `Reminder: free ${targetLabel} transfer on ${notice.paymentMethodLabel} expires in ${countdown}.`;
+}
+
+function hydrateSilencedTransferKeys() {
+  const rawValue = localStorage.getItem(SILENCED_TRANSFER_NOTIFICATIONS_KEY);
+  if (!rawValue) {
+    return new Set<string>();
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!Array.isArray(parsed)) {
+      return new Set<string>();
+    }
+
+    return new Set(parsed.filter((item): item is string => typeof item === "string"));
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function persistSilencedTransferKeys(keys: Set<string>) {
+  localStorage.setItem(
+    SILENCED_TRANSFER_NOTIFICATIONS_KEY,
+    JSON.stringify(Array.from(keys))
+  );
 }
 
 function getStoredTheme(): ThemeMode {
@@ -382,12 +415,22 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
   const [transferReminder, setTransferReminder] = useState("");
+  const [silencedTransferKeys, setSilencedTransferKeys] = useState(() =>
+    hydrateSilencedTransferKeys()
+  );
   const lastTransferReminderKey = useRef<string | null>(null);
+  const lastActiveTransferKey = useRef<string | null>(null);
   const activeTransferNotice = getActiveTransferNotice(
     recommendation,
     selectedMethodId,
     currentTimeMs
   );
+  const activeTransferKey = activeTransferNotice
+    ? getTransferNoticeKey(activeTransferNotice)
+    : null;
+  const transferNotificationsOff = activeTransferKey
+    ? silencedTransferKeys.has(activeTransferKey)
+    : false;
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -483,7 +526,25 @@ function App() {
   ]);
 
   useEffect(() => {
-    if (!activeTransferNotice) {
+    const previousKey = lastActiveTransferKey.current;
+    if (previousKey && previousKey !== activeTransferKey) {
+      setSilencedTransferKeys((current) => {
+        if (!current.has(previousKey)) {
+          return current;
+        }
+
+        const next = new Set(current);
+        next.delete(previousKey);
+        persistSilencedTransferKeys(next);
+        return next;
+      });
+    }
+
+    lastActiveTransferKey.current = activeTransferKey;
+  }, [activeTransferKey]);
+
+  useEffect(() => {
+    if (!activeTransferNotice || transferNotificationsOff) {
       lastTransferReminderKey.current = null;
       setTransferReminder("");
       return;
@@ -515,8 +576,28 @@ function App() {
     activeTransferNotice?.paymentMethodId,
     activeTransferNotice?.secondsRemaining,
     activeTransferNotice?.sourceRideId,
-    activeTransferNotice?.startedAt
+    activeTransferNotice?.startedAt,
+    transferNotificationsOff
   ]);
+
+  function handleTransferNotificationToggle() {
+    if (!activeTransferKey) {
+      return;
+    }
+
+    setSilencedTransferKeys((current) => {
+      const next = new Set(current);
+      if (next.has(activeTransferKey)) {
+        next.delete(activeTransferKey);
+        lastTransferReminderKey.current = null;
+      } else {
+        next.add(activeTransferKey);
+        setTransferReminder("");
+      }
+      persistSilencedTransferKeys(next);
+      return next;
+    });
+  }
 
   async function loadDashboard(activeToken: string) {
     try {
@@ -857,11 +938,24 @@ function App() {
               {formatTransitLabel(activeTransferNotice.sourceTransitMode)} to{" "}
               {formatTransitLabel(activeTransferNotice.targetTransitMode)} transfer available
             </strong>
-            <p>{transferReminder || buildTransferReminderMessage(activeTransferNotice, 0)}</p>
+            <p>
+              {transferNotificationsOff
+                ? "Notifications are off for this transfer. The timer will keep running here."
+                : transferReminder || buildTransferReminderMessage(activeTransferNotice, 0)}
+            </p>
           </div>
-          <div className="transfer-timer" aria-label="Transfer time remaining">
-            <span>{formatCountdown(activeTransferNotice.secondsRemaining)}</span>
-            <small>remaining</small>
+          <div className="transfer-controls">
+            <div className="transfer-timer" aria-label="Transfer time remaining">
+              <span>{formatCountdown(activeTransferNotice.secondsRemaining)}</span>
+              <small>remaining</small>
+            </div>
+            <button
+              type="button"
+              className="secondary-button transfer-toggle-button"
+              onClick={handleTransferNotificationToggle}
+            >
+              {transferNotificationsOff ? "Turn notifications on" : "Turn notifications off"}
+            </button>
           </div>
         </div>
       ) : null}
