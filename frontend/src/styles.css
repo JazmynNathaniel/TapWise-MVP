@@ -703,6 +703,13 @@ p {
   color: var(--muted);
 }
 
+.banner,
+.error {
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  font-weight: 700;
+}
+
 .banner.error,
 .error {
   color: var(--danger);
@@ -710,10 +717,54 @@ p {
 
 .banner.error {
   border: 1px solid rgba(238, 53, 46, 0.32);
-  border-radius: 8px;
   background: rgba(238, 53, 46, 0.12);
-  padding: 0.85rem 1rem;
+}
+
+.banner.transfer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid rgba(252, 204, 10, 0.34);
+  background: rgba(252, 204, 10, 0.13);
+  color: var(--ink);
+}
+
+.banner.transfer strong {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.banner.transfer p {
+  margin: 0;
+  color: var(--muted);
   font-weight: 700;
+}
+
+.transfer-timer {
+  display: grid;
+  place-items: center;
+  min-width: 130px;
+  min-height: 72px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+}
+
+.transfer-timer span {
+  color: var(--amber);
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.transfer-timer small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .selector-list,
@@ -879,9 +930,39 @@ p {
   margin: 0.25rem 0 0;
 }
 
-.route-chip {
+.ride-chip-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.route-chip,
+.fare-chip {
   flex: 0 0 auto;
+}
+
+.route-chip {
   color: var(--brand-strong);
+}
+
+.fare-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  color: var(--muted);
+  padding: 0.45rem 0.72rem;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.transfer-chip {
+  border-color: rgba(252, 204, 10, 0.38);
+  background: rgba(252, 204, 10, 0.14);
+  color: var(--amber);
 }
 
 .empty-state {
@@ -984,9 +1065,18 @@ p {
     grid-template-columns: 1fr;
   }
 
-  .ride-row {
+  .ride-row,
+  .banner.transfer {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .ride-chip-row {
+    justify-content: flex-start;
+  }
+
+  .transfer-timer {
+    width: 100%;
   }
 }
 

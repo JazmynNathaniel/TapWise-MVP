@@ -5,7 +5,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from ..extensions import db
 from ..models import PaymentMethod, Ride
-from ..services.fare_engine import ensure_utc
+from ..services.fare_engine import RideFareMetadata, analyze_rides, ensure_utc
 from ..services.transit_data import get_transit_options, is_valid_transit_selection
 
 rides_bp = Blueprint("rides", __name__)
@@ -18,8 +18,8 @@ def _parse_timestamp(raw_value: str | None) -> datetime:
     return ensure_utc(parsed)
 
 
-def _serialize_ride(ride: Ride) -> dict:
-    return {
+def _serialize_ride(ride: Ride, fare_metadata: RideFareMetadata | None = None) -> dict:
+    payload = {
         "id": ride.id,
         "payment_method_id": ride.payment_method_id,
         "payment_method_label": ride.payment_method.label,
@@ -30,6 +30,33 @@ def _serialize_ride(ride: Ride) -> dict:
         "timestamp": ride.timestamp.isoformat(),
         "created_at": ride.created_at.isoformat(),
     }
+    if fare_metadata:
+        payload.update(fare_metadata.to_dict())
+    else:
+        payload.update(
+            {
+                "counts_toward_cap": True,
+                "is_transfer": False,
+                "transfer_source_ride_id": None,
+                "transfer_expires_at": None,
+                "transfer_target_mode": None,
+            }
+        )
+    return payload
+
+
+def _build_ride_metadata(rides: list[Ride]) -> dict[int, RideFareMetadata]:
+    metadata_by_id: dict[int, RideFareMetadata] = {}
+    rides_by_method: dict[int, list[Ride]] = {}
+
+    for ride in rides:
+        rides_by_method.setdefault(ride.payment_method_id, []).append(ride)
+
+    for method_rides in rides_by_method.values():
+        analysis = analyze_rides(method_rides)
+        metadata_by_id.update(analysis.ride_metadata_by_id)
+
+    return metadata_by_id
 
 
 @rides_bp.get("/transit-options")
@@ -47,7 +74,10 @@ def list_rides():
         .order_by(Ride.timestamp.desc())
         .all()
     )
-    return jsonify([_serialize_ride(ride) for ride in rides])
+    metadata_by_id = _build_ride_metadata(rides)
+    return jsonify(
+        [_serialize_ride(ride, metadata_by_id.get(ride.id)) for ride in rides]
+    )
 
 
 @rides_bp.post("/rides")
@@ -84,4 +114,5 @@ def create_ride():
     db.session.add(ride)
     db.session.commit()
 
-    return jsonify(_serialize_ride(ride)), 201
+    metadata_by_id = _build_ride_metadata(list(payment_method.rides))
+    return jsonify(_serialize_ride(ride, metadata_by_id.get(ride.id))), 201

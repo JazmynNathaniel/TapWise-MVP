@@ -6,12 +6,75 @@ from typing import Iterable, List
 
 CAP_RIDES = 12
 WINDOW_DAYS = 7
+TRANSFER_WINDOW_HOURS = 2
+TRANSFER_MODES = {"bus", "subway"}
 
 
 def ensure_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+@dataclass(frozen=True)
+class FareRide:
+    id: int | None
+    timestamp: datetime
+    transit_mode: str
+
+
+@dataclass(frozen=True)
+class RideFareMetadata:
+    id: int | None
+    timestamp: datetime
+    counts_toward_cap: bool
+    is_transfer: bool
+    transfer_source_ride_id: int | None
+    transfer_expires_at: datetime | None
+    transfer_target_mode: str | None
+
+    def to_dict(self) -> dict:
+        return {
+            "counts_toward_cap": self.counts_toward_cap,
+            "is_transfer": self.is_transfer,
+            "transfer_source_ride_id": self.transfer_source_ride_id,
+            "transfer_expires_at": (
+                self.transfer_expires_at.isoformat()
+                if self.transfer_expires_at
+                else None
+            ),
+            "transfer_target_mode": self.transfer_target_mode,
+        }
+
+
+@dataclass(frozen=True)
+class TransferStatus:
+    available: bool
+    source_ride_id: int | None = None
+    source_transit_mode: str | None = None
+    target_transit_mode: str | None = None
+    started_at: datetime | None = None
+    expires_at: datetime | None = None
+    seconds_remaining: int = 0
+
+    def to_dict(self) -> dict:
+        return {
+            "available": self.available,
+            "source_ride_id": self.source_ride_id,
+            "source_transit_mode": self.source_transit_mode,
+            "target_transit_mode": self.target_transit_mode,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "seconds_remaining": self.seconds_remaining,
+        }
+
+
+@dataclass(frozen=True)
+class FareAnalysis:
+    ride_metadata: list[RideFareMetadata]
+    ride_metadata_by_id: dict[int, RideFareMetadata]
+    cap_ride_timestamps: list[datetime]
+    active_transfer: TransferStatus
 
 
 @dataclass
@@ -23,6 +86,8 @@ class FareStatus:
     window_end: datetime | None
     free_rides_active: bool
     latest_ride_timestamp: datetime | None
+    transfer_rides_taken: int
+    active_transfer: TransferStatus
 
     def to_dict(self) -> dict:
         return {
@@ -37,7 +102,138 @@ class FareStatus:
                 if self.latest_ride_timestamp
                 else None
             ),
+            "transfer_rides_taken": self.transfer_rides_taken,
+            "active_transfer": self.active_transfer.to_dict(),
         }
+
+
+def _normalize_transit_mode(value: str | None) -> str:
+    return (value or "").strip().lower()
+
+
+def _opposite_transfer_mode(transit_mode: str | None) -> str | None:
+    mode = _normalize_transit_mode(transit_mode)
+    if mode == "bus":
+        return "subway"
+    if mode == "subway":
+        return "bus"
+    return None
+
+
+def _as_fare_ride(value) -> FareRide:
+    if isinstance(value, datetime):
+        return FareRide(id=None, timestamp=ensure_utc(value), transit_mode="")
+
+    timestamp = getattr(value, "timestamp", None)
+    if not isinstance(timestamp, datetime):
+        raise TypeError("Fare rides must be datetimes or objects with a timestamp.")
+
+    ride_id = getattr(value, "id", None)
+    if ride_id is not None:
+        ride_id = int(ride_id)
+
+    return FareRide(
+        id=ride_id,
+        timestamp=ensure_utc(timestamp),
+        transit_mode=_normalize_transit_mode(getattr(value, "transit_mode", "")),
+    )
+
+
+def analyze_rides(
+    ride_events: Iterable[datetime | object], now: datetime | None = None
+) -> FareAnalysis:
+    now = ensure_utc(now or datetime.now(timezone.utc))
+    rides = sorted(
+        (_as_fare_ride(ride) for ride in ride_events),
+        key=lambda ride: (ride.timestamp, ride.id or 0),
+    )
+    metadata: list[RideFareMetadata] = []
+    cap_ride_timestamps: list[datetime] = []
+    pending_transfer_source: FareRide | None = None
+    pending_transfer_expires_at: datetime | None = None
+
+    for ride in rides:
+        pending_target_mode = _opposite_transfer_mode(
+            pending_transfer_source.transit_mode if pending_transfer_source else None
+        )
+        transfer_is_valid = (
+            pending_transfer_source is not None
+            and pending_transfer_expires_at is not None
+            and ride.timestamp <= pending_transfer_expires_at
+            and pending_target_mode == ride.transit_mode
+        )
+
+        if transfer_is_valid:
+            metadata.append(
+                RideFareMetadata(
+                    id=ride.id,
+                    timestamp=ride.timestamp,
+                    counts_toward_cap=False,
+                    is_transfer=True,
+                    transfer_source_ride_id=pending_transfer_source.id,
+                    transfer_expires_at=pending_transfer_expires_at,
+                    transfer_target_mode=None,
+                )
+            )
+            pending_transfer_source = None
+            pending_transfer_expires_at = None
+            continue
+
+        target_mode = _opposite_transfer_mode(ride.transit_mode)
+        transfer_expires_at = (
+            ride.timestamp + timedelta(hours=TRANSFER_WINDOW_HOURS)
+            if target_mode
+            else None
+        )
+
+        metadata.append(
+            RideFareMetadata(
+                id=ride.id,
+                timestamp=ride.timestamp,
+                counts_toward_cap=True,
+                is_transfer=False,
+                transfer_source_ride_id=None,
+                transfer_expires_at=transfer_expires_at,
+                transfer_target_mode=target_mode,
+            )
+        )
+        cap_ride_timestamps.append(ride.timestamp)
+
+        if target_mode:
+            pending_transfer_source = ride
+            pending_transfer_expires_at = transfer_expires_at
+        else:
+            pending_transfer_source = None
+            pending_transfer_expires_at = None
+
+    active_transfer = TransferStatus(available=False)
+    if (
+        pending_transfer_source
+        and pending_transfer_expires_at
+        and pending_transfer_source.timestamp <= now < pending_transfer_expires_at
+    ):
+        active_transfer = TransferStatus(
+            available=True,
+            source_ride_id=pending_transfer_source.id,
+            source_transit_mode=pending_transfer_source.transit_mode,
+            target_transit_mode=_opposite_transfer_mode(
+                pending_transfer_source.transit_mode
+            ),
+            started_at=pending_transfer_source.timestamp,
+            expires_at=pending_transfer_expires_at,
+            seconds_remaining=max(
+                0, int((pending_transfer_expires_at - now).total_seconds())
+            ),
+        )
+
+    return FareAnalysis(
+        ride_metadata=metadata,
+        ride_metadata_by_id={
+            item.id: item for item in metadata if item.id is not None
+        },
+        cap_ride_timestamps=cap_ride_timestamps,
+        active_transfer=active_transfer,
+    )
 
 
 def _active_window(rides: List[datetime], now: datetime) -> tuple[list[datetime], datetime | None]:
@@ -71,11 +267,11 @@ def _active_window(rides: List[datetime], now: datetime) -> tuple[list[datetime]
 
 
 def calculate_fare_status(
-    ride_timestamps: Iterable[datetime], now: datetime | None = None
+    ride_events: Iterable[datetime | object], now: datetime | None = None
 ) -> FareStatus:
     now = ensure_utc(now or datetime.now(timezone.utc))
-    rides = [ensure_utc(timestamp) for timestamp in ride_timestamps]
-    current_window, window_start = _active_window(rides, now)
+    analysis = analyze_rides(ride_events, now=now)
+    current_window, window_start = _active_window(analysis.cap_ride_timestamps, now)
 
     if not current_window or window_start is None:
         return FareStatus(
@@ -86,6 +282,8 @@ def calculate_fare_status(
             window_end=None,
             free_rides_active=False,
             latest_ride_timestamp=None,
+            transfer_rides_taken=0,
+            active_transfer=analysis.active_transfer,
         )
 
     rides_taken = min(len(current_window), CAP_RIDES)
@@ -93,6 +291,17 @@ def calculate_fare_status(
     window_end = window_start + timedelta(days=WINDOW_DAYS)
     cap_reached = len(current_window) >= CAP_RIDES
     free_rides_active = cap_reached and now < window_end
+    rides_in_window = [
+        item
+        for item in analysis.ride_metadata
+        if window_start <= item.timestamp < window_end
+    ]
+    transfer_rides_taken = sum(1 for item in rides_in_window if item.is_transfer)
+    latest_ride_timestamp = (
+        max(item.timestamp for item in rides_in_window)
+        if rides_in_window
+        else current_window[-1]
+    )
 
     return FareStatus(
         rides_taken=rides_taken,
@@ -101,5 +310,7 @@ def calculate_fare_status(
         window_start=window_start,
         window_end=window_end,
         free_rides_active=free_rides_active,
-        latest_ride_timestamp=current_window[-1],
+        latest_ride_timestamp=latest_ride_timestamp,
+        transfer_rides_taken=transfer_rides_taken,
+        active_transfer=analysis.active_transfer,
     )

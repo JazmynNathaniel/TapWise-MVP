@@ -10,7 +10,7 @@ def build_recommendation(payment_methods, now: datetime | None = None) -> dict:
     statuses = []
 
     for method in payment_methods:
-        status = calculate_fare_status([ride.timestamp for ride in method.rides], now=now)
+        status = calculate_fare_status(method.rides, now=now)
         statuses.append(
             {
                 "payment_method_id": method.id,
@@ -43,12 +43,38 @@ def build_recommendation(payment_methods, now: datetime | None = None) -> dict:
         if item["status"]["rides_taken"] > 0 and not item["status"]["free_rides_active"]
     ]
     warning = None
+    active_transfer_method = next(
+        (
+            item
+            for item in statuses
+            if item["status"]["active_transfer"]["available"]
+        ),
+        None,
+    )
+    if active_transfer_method:
+        best_method = active_transfer_method
+
     if len(progressed_methods) > 1:
         warning = "Switching methods right now will reset your progress toward the current fare cap."
+    if active_transfer_method:
+        warning = (
+            f"Use {active_transfer_method['label']} for the open transfer. "
+            "Switching cards will make the next tap count as a paid ride."
+        )
 
     if best_method["status"]["free_rides_active"]:
         message = f"Use {best_method['label']} - free rides are active."
         estimated = 0
+    elif active_transfer_method:
+        target_mode = active_transfer_method["status"]["active_transfer"][
+            "target_transit_mode"
+        ]
+        target_label = "train" if target_mode == "subway" else target_mode
+        message = (
+            f"Use {active_transfer_method['label']} - free "
+            f"{target_label} transfer is available."
+        )
+        estimated = active_transfer_method["status"]["rides_remaining"]
     else:
         remaining = best_method["status"]["rides_remaining"]
         ride_word = "ride" if remaining == 1 else "rides"

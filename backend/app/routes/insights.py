@@ -25,7 +25,7 @@ def fare_status(payment_method_id):
         return jsonify({"error": "Payment method not found."}), 404
 
     status = calculate_fare_status(
-        [ride.timestamp for ride in payment_method.rides],
+        payment_method.rides,
         now=datetime.now(timezone.utc),
     )
     return jsonify(

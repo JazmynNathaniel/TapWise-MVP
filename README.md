@@ -116,6 +116,8 @@ Compatibility aliases were added for the typo variants from the spec (`payment_m
 ## Fare Logic
 
 - A payment method starts a 7-day fare-cap window on its first ride.
-- All rides inside that 7-day block count toward the cap for that payment method only.
+- Only cap-counting rides inside that 7-day block count toward the cap for that payment method.
+- A bus-to-train or train-to-bus transfer on the same payment method is free for two hours.
+- Free transfer rides do not count toward the 12-ride fare cap.
 - After 12 rides in that active window, `cap_reached` becomes true and the method is treated as having free rides until the window expires.
 - If the current time is past the window end, the next ride starts a fresh 7-day window.

@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState, type CSSProperties } from "react";
+import { FormEvent, useEffect, useRef, useState, type CSSProperties } from "react";
 import { api } from "./api";
 import {
   FareStatus,
@@ -14,6 +14,8 @@ const USER_KEY = "tapwise_user";
 const HAS_AUTHENTICATED_BEFORE_KEY = "tapwise_has_authenticated_before";
 const THEME_KEY = "tapwise_theme";
 const FARE_CAP_RIDES = 12;
+const TRANSFER_WINDOW_SECONDS = 2 * 60 * 60;
+const TRANSFER_REMINDER_SECONDS = 30 * 60;
 const PAYMENT_TYPE_OPTIONS = [
   { value: "visa", label: "Visa" },
   { value: "mastercard", label: "Mastercard" },
@@ -42,6 +44,18 @@ type RideFormState = {
 };
 
 type RideTimingMode = "now" | "manual";
+
+type ActiveTransferNotice = {
+  paymentMethodId: number;
+  paymentMethodLabel: string;
+  sourceRideId: number | null;
+  sourceTransitMode: string | null;
+  targetTransitMode: string | null;
+  startedAt: string | null;
+  expiresAt: string;
+  secondsRemaining: number;
+  isSelectedMethod: boolean;
+};
 
 const emptyPaymentForm: PaymentFormState = {
   label: "",
@@ -83,6 +97,98 @@ function getPaymentTypeLabel(value: string) {
 
 function formatPaymentType(value: string) {
   return getPaymentTypeLabel(value).toUpperCase();
+}
+
+function formatTransitLabel(value: string | null) {
+  if (value === "subway") {
+    return "train";
+  }
+  if (value === "bus") {
+    return "bus";
+  }
+  return "ride";
+}
+
+function formatCountdown(totalSeconds: number) {
+  const seconds = Math.max(0, totalSeconds);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+
+  return [hours, minutes, remainingSeconds]
+    .map((part) => `${part}`.padStart(2, "0"))
+    .join(":");
+}
+
+function getSecondsUntil(value: string | null, nowMs: number) {
+  if (!value) {
+    return 0;
+  }
+
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor((timestamp - nowMs) / 1000));
+}
+
+function getActiveTransferNotice(
+  recommendation: Recommendation | null,
+  selectedMethodId: number | null,
+  nowMs: number
+): ActiveTransferNotice | null {
+  const notices =
+    recommendation?.methods
+      .map((method) => {
+        const transfer = method.status.active_transfer;
+        const secondsRemaining = getSecondsUntil(transfer.expires_at, nowMs);
+
+        if (!transfer.available || !transfer.expires_at || secondsRemaining <= 0) {
+          return null;
+        }
+
+        return {
+          paymentMethodId: method.payment_method_id,
+          paymentMethodLabel: method.label,
+          sourceRideId: transfer.source_ride_id,
+          sourceTransitMode: transfer.source_transit_mode,
+          targetTransitMode: transfer.target_transit_mode,
+          startedAt: transfer.started_at,
+          expiresAt: transfer.expires_at,
+          secondsRemaining,
+          isSelectedMethod: method.payment_method_id === selectedMethodId
+        };
+      })
+      .filter((notice): notice is ActiveTransferNotice => Boolean(notice)) ?? [];
+
+  if (notices.length === 0) {
+    return null;
+  }
+
+  const selectedNotice = notices.find((notice) => notice.isSelectedMethod);
+  if (selectedNotice) {
+    return selectedNotice;
+  }
+
+  return notices.reduce((soonest, notice) =>
+    notice.secondsRemaining < soonest.secondsRemaining ? notice : soonest
+  );
+}
+
+function buildTransferReminderMessage(notice: ActiveTransferNotice, reminderBucket: number) {
+  const targetLabel = formatTransitLabel(notice.targetTransitMode);
+  const countdown = formatCountdown(notice.secondsRemaining);
+
+  if (!notice.isSelectedMethod) {
+    return `Transfer is on ${notice.paymentMethodLabel}. Switch back for your next ${targetLabel} tap; ${countdown} left.`;
+  }
+
+  if (reminderBucket === 0) {
+    return `Keep using ${notice.paymentMethodLabel} for your next ${targetLabel} tap. Switching cards will make it count as paid.`;
+  }
+
+  return `Reminder: free ${targetLabel} transfer on ${notice.paymentMethodLabel} expires in ${countdown}.`;
 }
 
 function getStoredTheme(): ThemeMode {
@@ -274,6 +380,14 @@ function App() {
   const [authError, setAuthError] = useState("");
   const [appError, setAppError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
+  const [transferReminder, setTransferReminder] = useState("");
+  const lastTransferReminderKey = useRef<string | null>(null);
+  const activeTransferNotice = getActiveTransferNotice(
+    recommendation,
+    selectedMethodId,
+    currentTimeMs
+  );
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -351,6 +465,58 @@ function App() {
       };
     });
   }, [transitOptions, rideForm.transitMode]);
+
+  useEffect(() => {
+    if (!activeTransferNotice) {
+      return;
+    }
+
+    const timerId = window.setInterval(() => {
+      setCurrentTimeMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timerId);
+  }, [
+    activeTransferNotice?.expiresAt,
+    activeTransferNotice?.paymentMethodId,
+    activeTransferNotice?.sourceRideId
+  ]);
+
+  useEffect(() => {
+    if (!activeTransferNotice) {
+      lastTransferReminderKey.current = null;
+      setTransferReminder("");
+      return;
+    }
+
+    const elapsedSeconds = Math.max(
+      0,
+      TRANSFER_WINDOW_SECONDS - activeTransferNotice.secondsRemaining
+    );
+    const reminderBucket = Math.min(
+      3,
+      Math.floor(elapsedSeconds / TRANSFER_REMINDER_SECONDS)
+    );
+    const reminderKey = [
+      activeTransferNotice.paymentMethodId,
+      activeTransferNotice.sourceRideId ?? activeTransferNotice.startedAt,
+      reminderBucket,
+      activeTransferNotice.isSelectedMethod ? "selected" : "other"
+    ].join(":");
+
+    if (lastTransferReminderKey.current === reminderKey) {
+      return;
+    }
+
+    lastTransferReminderKey.current = reminderKey;
+    setTransferReminder(buildTransferReminderMessage(activeTransferNotice, reminderBucket));
+  }, [
+    activeTransferNotice?.isSelectedMethod,
+    activeTransferNotice?.paymentMethodId,
+    activeTransferNotice?.secondsRemaining,
+    activeTransferNotice?.sourceRideId,
+    activeTransferNotice?.startedAt
+  ]);
 
   async function loadDashboard(activeToken: string) {
     try {
@@ -551,7 +717,7 @@ function App() {
           <div className="auth-stat-grid" aria-label="TapWise fare tracking summary">
             <div>
               <strong>12</strong>
-              <span>paid rides to cap</span>
+              <span>cap-counting rides</span>
             </div>
             <div>
               <strong>7 days</strong>
@@ -566,7 +732,7 @@ function App() {
           <div className="fare-preview" aria-label="Example fare cap progress">
             <div className="fare-preview-header">
               <span>Work Visa</span>
-              <strong>8 / 12 rides</strong>
+              <strong>8 / 12 cap rides</strong>
             </div>
             <div className="fare-preview-meter">
               <span />
@@ -684,6 +850,21 @@ function App() {
       </header>
 
       {appError ? <div className="banner error">{appError}</div> : null}
+      {activeTransferNotice ? (
+        <div className="banner transfer" role="status" aria-live="polite">
+          <div>
+            <strong>
+              {formatTransitLabel(activeTransferNotice.sourceTransitMode)} to{" "}
+              {formatTransitLabel(activeTransferNotice.targetTransitMode)} transfer available
+            </strong>
+            <p>{transferReminder || buildTransferReminderMessage(activeTransferNotice, 0)}</p>
+          </div>
+          <div className="transfer-timer" aria-label="Transfer time remaining">
+            <span>{formatCountdown(activeTransferNotice.secondsRemaining)}</span>
+            <small>remaining</small>
+          </div>
+        </div>
+      ) : null}
 
       <section className="status-strip" aria-label="TapWise account summary">
         <div className="stat-tile">
@@ -822,18 +1003,24 @@ function App() {
           </p>
           <div
             className="progress-track"
-            aria-label={`${ridesTaken} of ${FARE_CAP_RIDES} paid rides completed`}
+            aria-label={`${ridesTaken} of ${FARE_CAP_RIDES} cap-counting rides completed`}
           >
             <div className="progress-fill" style={{ width: `${progress}%` }} />
           </div>
           <div className="progress-meta">
-            <span>{ridesTaken} / {FARE_CAP_RIDES} paid rides</span>
+            <span>{ridesTaken} / {FARE_CAP_RIDES} cap-counting rides</span>
             <span>Window ends {formatDate(fareStatus?.window_end ?? null)}</span>
           </div>
           {selectedMethod ? (
             <div className="detail-chip-row">
               <span className="detail-chip">{formatPaymentType(selectedMethod.payment_type)}</span>
               <span className="detail-chip">Code: {selectedMethod.identifier_code}</span>
+              {fareStatus?.transfer_rides_taken ? (
+                <span className="detail-chip">
+                  {fareStatus.transfer_rides_taken} free{" "}
+                  {fareStatus.transfer_rides_taken === 1 ? "transfer" : "transfers"}
+                </span>
+              ) : null}
             </div>
           ) : null}
         </article>
@@ -981,9 +1168,14 @@ function App() {
                     {ride.entry_stop} to {ride.exit_stop}
                   </p>
                 </div>
-                <span className="route-chip">
-                  {ride.transit_mode.toUpperCase()} {ride.transit_line}
-                </span>
+                <div className="ride-chip-row">
+                  <span className="route-chip">
+                    {ride.transit_mode.toUpperCase()} {ride.transit_line}
+                  </span>
+                  <span className={ride.is_transfer ? "fare-chip transfer-chip" : "fare-chip"}>
+                    {ride.is_transfer ? "Free transfer" : "Cap ride"}
+                  </span>
+                </div>
               </div>
             ))}
             {rides.length === 0 ? (
