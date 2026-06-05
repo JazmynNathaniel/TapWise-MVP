@@ -24,7 +24,7 @@
   --bridge: rgba(180, 210, 232, 0.18);
   --landmark: rgba(133, 204, 187, 0.18);
   --skyline: rgba(168, 196, 216, 0.12);
-  --shadow: 0 22px 55px rgba(0, 0, 0, 0.36);
+  --shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
   font-family: "Manrope", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--ink);
   background: var(--page-bottom);
@@ -56,7 +56,7 @@
   --bridge: rgba(42, 79, 107, 0.16);
   --landmark: rgba(0, 147, 60, 0.13);
   --skyline: rgba(34, 55, 73, 0.1);
-  --shadow: 0 18px 42px rgba(35, 55, 70, 0.14);
+  --shadow: 0 14px 28px rgba(35, 55, 70, 0.1);
 }
 
 * {
@@ -400,8 +400,12 @@ p {
   border: 1px solid var(--line);
   background: var(--surface);
   border-radius: 8px;
-  box-shadow: var(--shadow);
   backdrop-filter: blur(18px);
+}
+
+.auth-panel,
+.panel {
+  box-shadow: var(--shadow);
 }
 
 .auth-stat-grid div {
@@ -466,6 +470,30 @@ p {
   text-align: right;
 }
 
+.privacy-note {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 34rem;
+  padding: 0.95rem 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 147, 60, 0.3);
+  background: rgba(0, 147, 60, 0.12);
+}
+
+.privacy-note strong {
+  color: var(--ink);
+}
+
+.privacy-note p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.compact-privacy-note {
+  margin-top: 1rem;
+}
+
 .fare-preview-meter {
   height: 14px;
   overflow: hidden;
@@ -491,6 +519,12 @@ p {
 .auth-panel,
 .panel {
   padding: 1.25rem;
+}
+
+.panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 72%),
+    var(--surface);
 }
 
 .auth-panel {
@@ -525,9 +559,9 @@ p {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.25rem;
   padding: 0.25rem;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(160, 180, 197, 0.16);
   border-radius: 8px;
-  background: var(--surface-soft);
+  background: rgba(17, 35, 52, 0.5);
 }
 
 .theme-toggle {
@@ -554,8 +588,8 @@ p {
 .selector,
 .secondary-button {
   color: var(--ink);
-  background: var(--surface-strong);
-  border: 1px solid var(--line);
+  background: rgba(12, 26, 40, 0.68);
+  border: 1px solid rgba(160, 180, 197, 0.16);
 }
 
 .mode-toggle button.active,
@@ -706,6 +740,8 @@ p {
   gap: 0.3rem;
   min-height: 96px;
   padding: 1rem;
+  background: var(--surface-soft);
+  box-shadow: none;
 }
 
 .stat-tile span {
@@ -967,8 +1003,8 @@ p {
   gap: 0.85rem;
   padding: 1rem;
   border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--surface-soft);
+  border: 1px solid rgba(160, 180, 197, 0.16);
+  background: rgba(17, 35, 52, 0.44);
 }
 
 .ride-timing-toggle {
@@ -1007,8 +1043,8 @@ p {
   min-height: 224px;
   padding: 1rem;
   border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--surface-soft);
+  border: 1px solid rgba(160, 180, 197, 0.16);
+  background: rgba(17, 35, 52, 0.44);
 }
 
 .selected-alert-board {
@@ -1017,8 +1053,8 @@ p {
   min-height: 180px;
   padding: 1rem;
   border-radius: 8px;
-  border: 1px solid rgba(252, 204, 10, 0.28);
-  background: rgba(252, 204, 10, 0.08);
+  border: 1px solid rgba(252, 204, 10, 0.22);
+  background: rgba(252, 204, 10, 0.06);
 }
 
 .arrival-board-heading {
@@ -1056,8 +1092,8 @@ p {
   min-width: 0;
   padding: 0.85rem;
   border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--surface-strong);
+  border: 1px solid rgba(160, 180, 197, 0.14);
+  background: rgba(12, 26, 40, 0.62);
 }
 
 .direction-card-first {
@@ -1132,8 +1168,8 @@ p {
   min-height: 58px;
   padding: 0.7rem 0.8rem;
   border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--surface-strong);
+  border: 1px solid rgba(160, 180, 197, 0.14);
+  background: rgba(5, 14, 23, 0.42);
 }
 
 .arrival-row div {
@@ -1201,9 +1237,9 @@ p {
 
 .notification-card,
 .frequent-route-row {
-  border: 1px solid var(--line);
+  border: 1px solid rgba(160, 180, 197, 0.14);
   border-radius: 8px;
-  background: var(--surface-soft);
+  background: rgba(17, 35, 52, 0.48);
 }
 
 .notification-card {
@@ -1398,8 +1434,8 @@ p {
   align-items: center;
   padding: 0.9rem;
   border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--surface-soft);
+  border: 1px solid rgba(160, 180, 197, 0.14);
+  background: rgba(17, 35, 52, 0.48);
 }
 
 .ride-row-title {
@@ -1600,6 +1636,10 @@ p {
 }
 
 @media (max-width: 620px) {
+  .dashboard-shell {
+    padding-bottom: 6rem;
+  }
+
   .auth-stat-grid,
   .status-strip {
     grid-template-columns: 1fr;
@@ -1630,12 +1670,27 @@ p {
   }
 
   .dashboard-tabs {
-    top: 0.5rem;
+    position: fixed;
+    top: auto;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    z-index: 20;
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
   }
 
   .dashboard-tabs button {
-    min-height: 58px;
-    padding: 0.62rem 0.7rem;
+    justify-items: center;
+    min-height: 56px;
+    padding: 0.55rem 0.45rem;
+    text-align: center;
+  }
+
+  .dashboard-tabs small {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .direction-card-grid {

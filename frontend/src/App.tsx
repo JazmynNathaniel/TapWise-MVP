@@ -15,6 +15,12 @@ import {
   User
 } from "./types";
 
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext;
+  }
+}
+
 const TOKEN_KEY = "tapwise_token";
 const USER_KEY = "tapwise_user";
 const HAS_AUTHENTICATED_BEFORE_KEY = "tapwise_has_authenticated_before";
@@ -147,6 +153,37 @@ function formatMinutesUntil(minutes: number) {
     return "1 min";
   }
   return `${minutes} min`;
+}
+
+function playNotificationPreview(soundOption: SoundOption, volume: number) {
+  if (soundOption === "none") {
+    return;
+  }
+
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) {
+    return;
+  }
+
+  const audioContext = new AudioContextClass();
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  const now = audioContext.currentTime;
+  const normalizedVolume = Math.min(1, Math.max(0, volume / 100));
+  const frequency = soundOption === "bright" ? 880 : 520;
+
+  oscillator.type = soundOption === "bright" ? "triangle" : "sine";
+  oscillator.frequency.setValueAtTime(frequency, now);
+  oscillator.frequency.exponentialRampToValueAtTime(frequency * 1.22, now + 0.12);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, normalizedVolume * 0.16), now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+
+  oscillator.connect(gain);
+  gain.connect(audioContext.destination);
+  oscillator.start(now);
+  oscillator.stop(now + 0.3);
+  window.setTimeout(() => void audioContext.close(), 420);
 }
 
 function formatModeLabel(value: string) {
@@ -972,6 +1009,16 @@ function App() {
     setSettings((current) => ({ ...current, [key]: value }));
   }
 
+  function handleSoundOptionChange(value: SoundOption) {
+    updateSettings("soundOption", value);
+    playNotificationPreview(value, settings.notificationVolume);
+  }
+
+  function handleNotificationVolumeChange(value: number) {
+    updateSettings("notificationVolume", value);
+    playNotificationPreview(settings.soundOption, value);
+  }
+
   async function handleDeleteProfile() {
     if (!token || profileDeleting) {
       return;
@@ -1192,6 +1239,15 @@ function App() {
               </div>
             </div>
           </div>
+
+          <div className="privacy-note" aria-label="TapWise privacy note">
+            <strong>No location tracking needed.</strong>
+            <p>
+              TapWise does not need or want your current location to track your rides.
+              Your frequent routes are based on the trips you choose to log, not where
+              your phone is.
+            </p>
+          </div>
         </section>
 
         <section className="auth-panel" aria-label="TapWise account access">
@@ -1349,7 +1405,7 @@ function App() {
           className={dashboardTab === "fare" ? "active" : ""}
           onClick={() => setDashboardTab("fare")}
         >
-          <span>Fare tracking</span>
+          <span>Fares</span>
           <small>
             {fareStatus?.free_rides_active ? "Free rides active" : `${ridesRemaining} left`}
           </small>
@@ -1843,7 +1899,7 @@ function App() {
               <select
                 value={settings.soundOption}
                 onChange={(event) =>
-                  updateSettings("soundOption", event.target.value as SoundOption)
+                  handleSoundOptionChange(event.target.value as SoundOption)
                 }
               >
                 <option value="soft">Soft chime</option>
@@ -1860,7 +1916,7 @@ function App() {
                   max="100"
                   value={settings.notificationVolume}
                   onChange={(event) =>
-                    updateSettings("notificationVolume", Number(event.target.value))
+                    handleNotificationVolumeChange(Number(event.target.value))
                   }
                   disabled={settings.soundOption === "none"}
                 />
@@ -1893,6 +1949,13 @@ function App() {
           <div className="account-summary">
             <strong>{user.username}</strong>
             <span>{user.email}</span>
+          </div>
+          <div className="privacy-note compact-privacy-note">
+            <strong>Your location stays yours.</strong>
+            <p>
+              TapWise uses logged rides to understand your familiar routes. It does not
+              use your current location for tracking.
+            </p>
           </div>
           <div className="account-action-list">
             <button type="button" className="secondary-button" onClick={handleLogout}>
