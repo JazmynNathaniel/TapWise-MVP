@@ -46,7 +46,7 @@ type AuthMode = "login" | "register";
 type ThemeMode = "dark" | "light";
 type DashboardTab = "fare" | "travel" | "settings";
 type NotificationFrequency = "as_it_happens" | "daily" | "weekly";
-type SoundOption = "soft" | "bright" | "none";
+type SoundOption = "service_change" | "travel_update" | "soft" | "bright" | "none";
 
 type PaymentFormState = {
   label: string;
@@ -113,8 +113,8 @@ const defaultSettings: AppSettings = {
   serviceAlertsEnabled: true,
   transferRemindersEnabled: true,
   notificationFrequency: "as_it_happens",
-  notificationVolume: 70,
-  soundOption: "soft"
+  notificationVolume: 90,
+  soundOption: "service_change"
 };
 
 function formatDate(value: string | null) {
@@ -160,6 +160,29 @@ function playNotificationPreview(soundOption: SoundOption, volume: number) {
     return;
   }
 
+  const normalizedVolume = Math.min(1, Math.max(0, volume / 100));
+
+  if (soundOption === "service_change" || soundOption === "travel_update") {
+    const speech = "speechSynthesis" in window ? window.speechSynthesis : null;
+    if (!speech) {
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(
+      soundOption === "service_change"
+        ? "Service Change"
+        : "There has been an update to your travel plans"
+    );
+    utterance.volume = normalizedVolume;
+    utterance.rate = soundOption === "service_change" ? 0.86 : 0.9;
+    utterance.pitch = 0.92;
+    utterance.voice =
+      speech.getVoices().find((voice) => voice.lang.toLowerCase().startsWith("en-us")) ?? null;
+    speech.cancel();
+    speech.speak(utterance);
+    return;
+  }
+
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) {
     return;
@@ -169,14 +192,13 @@ function playNotificationPreview(soundOption: SoundOption, volume: number) {
   const oscillator = audioContext.createOscillator();
   const gain = audioContext.createGain();
   const now = audioContext.currentTime;
-  const normalizedVolume = Math.min(1, Math.max(0, volume / 100));
   const frequency = soundOption === "bright" ? 880 : 520;
 
   oscillator.type = soundOption === "bright" ? "triangle" : "sine";
   oscillator.frequency.setValueAtTime(frequency, now);
   oscillator.frequency.exponentialRampToValueAtTime(frequency * 1.22, now + 0.12);
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, normalizedVolume * 0.16), now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, normalizedVolume * 0.32), now + 0.02);
   gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
 
   oscillator.connect(gain);
@@ -388,9 +410,12 @@ function hydrateStoredSettings(): AppSettings {
         ? parsed.notificationFrequency
         : "as_it_happens";
     const soundOption: SoundOption =
-      parsed.soundOption === "bright" || parsed.soundOption === "none"
+      parsed.soundOption === "travel_update" ||
+      parsed.soundOption === "bright" ||
+      parsed.soundOption === "soft" ||
+      parsed.soundOption === "none"
         ? parsed.soundOption
-        : "soft";
+        : "service_change";
     const notificationVolume =
       typeof parsed.notificationVolume === "number"
         ? Math.min(100, Math.max(0, parsed.notificationVolume))
@@ -1016,6 +1041,9 @@ function App() {
 
   function handleNotificationVolumeChange(value: number) {
     updateSettings("notificationVolume", value);
+  }
+
+  function handleNotificationVolumePreview(value: number) {
     playNotificationPreview(settings.soundOption, value);
   }
 
@@ -1902,6 +1930,8 @@ function App() {
                   handleSoundOptionChange(event.target.value as SoundOption)
                 }
               >
+                <option value="service_change">Voice: Service Change</option>
+                <option value="travel_update">Voice: travel update</option>
                 <option value="soft">Soft chime</option>
                 <option value="bright">Bright chime</option>
                 <option value="none">No sound</option>
@@ -1917,6 +1947,12 @@ function App() {
                   value={settings.notificationVolume}
                   onChange={(event) =>
                     handleNotificationVolumeChange(Number(event.target.value))
+                  }
+                  onPointerUp={(event) =>
+                    handleNotificationVolumePreview(Number(event.currentTarget.value))
+                  }
+                  onKeyUp={(event) =>
+                    handleNotificationVolumePreview(Number(event.currentTarget.value))
                   }
                   disabled={settings.soundOption === "none"}
                 />
