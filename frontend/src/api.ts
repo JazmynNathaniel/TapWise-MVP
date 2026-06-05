@@ -115,6 +115,9 @@ export const api = {
       body: JSON.stringify({ email, password })
     });
   },
+  deleteProfile(token: string) {
+    return request<{ message: string }>("/auth/profile", { method: "DELETE" }, token);
+  },
   getPaymentMethods(token: string) {
     return request<PaymentMethod[]>("/payment-methods", {}, token);
   },

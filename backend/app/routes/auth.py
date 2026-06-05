@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from ..extensions import db
@@ -61,3 +61,15 @@ def login():
 
     access_token = create_access_token(identity=str(user.id))
     return jsonify({"token": access_token, "user": _serialize_user(user)})
+
+
+@auth_bp.delete("/profile")
+@jwt_required()
+def delete_profile():
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    if user:
+        db.session.delete(user)
+        db.session.commit()
+
+    return jsonify({"message": "Profile deleted."})

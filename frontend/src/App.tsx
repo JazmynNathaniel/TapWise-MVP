@@ -19,6 +19,7 @@ const TOKEN_KEY = "tapwise_token";
 const USER_KEY = "tapwise_user";
 const HAS_AUTHENTICATED_BEFORE_KEY = "tapwise_has_authenticated_before";
 const THEME_KEY = "tapwise_theme";
+const SETTINGS_KEY = "tapwise_settings";
 const SILENCED_TRANSFER_NOTIFICATIONS_KEY = "tapwise_silenced_transfer_notifications";
 const SESSION_ENDED_MESSAGE = "Your session has ended. Please sign in again.";
 const FARE_CAP_RIDES = 12;
@@ -37,7 +38,9 @@ const PAYMENT_TYPE_OPTIONS = [
 
 type AuthMode = "login" | "register";
 type ThemeMode = "dark" | "light";
-type DashboardTab = "fare" | "travel";
+type DashboardTab = "fare" | "travel" | "settings";
+type NotificationFrequency = "as_it_happens" | "daily" | "weekly";
+type SoundOption = "soft" | "bright" | "none";
 
 type PaymentFormState = {
   label: string;
@@ -53,6 +56,15 @@ type RideFormState = {
 };
 
 type RideTimingMode = "now" | "manual";
+
+type AppSettings = {
+  routeUpdatesEnabled: boolean;
+  serviceAlertsEnabled: boolean;
+  transferRemindersEnabled: boolean;
+  notificationFrequency: NotificationFrequency;
+  notificationVolume: number;
+  soundOption: SoundOption;
+};
 
 type ActiveTransferNotice = {
   paymentMethodId: number;
@@ -88,6 +100,15 @@ const emptyRideForm: RideFormState = {
   transitLine: "",
   entryStop: "",
   exitStop: ""
+};
+
+const defaultSettings: AppSettings = {
+  routeUpdatesEnabled: true,
+  serviceAlertsEnabled: true,
+  transferRemindersEnabled: true,
+  notificationFrequency: "as_it_happens",
+  notificationVolume: 70,
+  soundOption: "soft"
 };
 
 function formatDate(value: string | null) {
@@ -317,6 +338,41 @@ function getStoredTheme(): ThemeMode {
   return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
 }
 
+function hydrateStoredSettings(): AppSettings {
+  const rawValue = localStorage.getItem(SETTINGS_KEY);
+  if (!rawValue) {
+    return defaultSettings;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as Partial<AppSettings>;
+    const notificationFrequency: NotificationFrequency =
+      parsed.notificationFrequency === "daily" || parsed.notificationFrequency === "weekly"
+        ? parsed.notificationFrequency
+        : "as_it_happens";
+    const soundOption: SoundOption =
+      parsed.soundOption === "bright" || parsed.soundOption === "none"
+        ? parsed.soundOption
+        : "soft";
+    const notificationVolume =
+      typeof parsed.notificationVolume === "number"
+        ? Math.min(100, Math.max(0, parsed.notificationVolume))
+        : defaultSettings.notificationVolume;
+
+    return {
+      routeUpdatesEnabled: parsed.routeUpdatesEnabled ?? defaultSettings.routeUpdatesEnabled,
+      serviceAlertsEnabled: parsed.serviceAlertsEnabled ?? defaultSettings.serviceAlertsEnabled,
+      transferRemindersEnabled:
+        parsed.transferRemindersEnabled ?? defaultSettings.transferRemindersEnabled,
+      notificationFrequency,
+      notificationVolume,
+      soundOption
+    };
+  } catch {
+    return defaultSettings;
+  }
+}
+
 function NycBackdrop() {
   return (
     <div className="nyc-backdrop" aria-hidden="true">
@@ -477,6 +533,7 @@ async function sha256Hex(value: string) {
 
 function App() {
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
+  const [settings, setSettings] = useState<AppSettings>(() => hydrateStoredSettings());
   const [dashboardTab, setDashboardTab] = useState<DashboardTab>("fare");
   const [mode, setMode] = useState<AuthMode>("register");
   const [username, setUsername] = useState("tapwise_rider");
@@ -511,7 +568,9 @@ function App() {
   const [manualRideTime, setManualRideTime] = useState(() => createManualRideDateTime().time);
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
   const [appError, setAppError] = useState("");
+  const [profileDeleting, setProfileDeleting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
   const [transferReminder, setTransferReminder] = useState("");
@@ -536,6 +595,10 @@ function App() {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }, [settings]);
 
   useEffect(() => {
     if (!token) {
@@ -866,6 +929,7 @@ function App() {
     event.preventDefault();
     try {
       setAuthError("");
+      setAuthNotice("");
       const response =
         mode === "register"
           ? await api.register(username.trim().toLowerCase(), email, password)
@@ -902,6 +966,36 @@ function App() {
     setRouteSummaries([]);
     setPersonalizedAlerts(null);
     setArrivalBoard(null);
+  }
+
+  function updateSettings<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
+    setSettings((current) => ({ ...current, [key]: value }));
+  }
+
+  async function handleDeleteProfile() {
+    if (!token || profileDeleting) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Delete your TapWise profile, payment methods, and ride history? This cannot be undone."
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setProfileDeleting(true);
+    try {
+      setAppError("");
+      await api.deleteProfile(token);
+      handleLogout();
+      setMode("register");
+      setAuthNotice("Your TapWise profile has been deleted.");
+    } catch (error) {
+      setAppError((error as Error).message);
+    } finally {
+      setProfileDeleting(false);
+    }
   }
 
   function updatePaymentForm<K extends keyof PaymentFormState>(
@@ -1156,6 +1250,7 @@ function App() {
                 required
               />
             </label>
+            {authNotice ? <p className="notice">{authNotice}</p> : null}
             {authError ? <p className="error">{authError}</p> : null}
             <button type="submit" className="primary-button">
               {mode === "register" ? "Create account" : "Sign in"}
@@ -1212,16 +1307,12 @@ function App() {
           </h1>
         </div>
         <div className="topbar-actions">
-          <ThemeToggle theme={theme} onThemeChange={setTheme} />
           <span className="user-pill">{user.email}</span>
-          <button onClick={handleLogout} className="secondary-button">
-            Logout
-          </button>
         </div>
       </header>
 
       {appError ? <div className="banner error">{appError}</div> : null}
-      {activeTransferNotice ? (
+      {activeTransferNotice && settings.transferRemindersEnabled ? (
         <div className="banner transfer" role="status" aria-live="polite">
           <div>
             <strong>
@@ -1276,6 +1367,16 @@ function App() {
               ? `${formatModeLabel(selectedRouteMode)} ${selectedRouteLine}`
               : "Routes"}
           </small>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={dashboardTab === "settings"}
+          className={dashboardTab === "settings" ? "active" : ""}
+          onClick={() => setDashboardTab("settings")}
+        >
+          <span>Settings</span>
+          <small>Preferences</small>
         </button>
       </div>
 
@@ -1577,10 +1678,14 @@ function App() {
                   <strong>Delays and service changes</strong>
                   <span>{selectedRouteLine || "Select a route"}</span>
                 </div>
-                {selectedRouteAlertsLoading ? (
+                {!settings.serviceAlertsEnabled ? (
+                  <p className="empty-state">
+                    Service updates are paused. You can turn them back on in Settings.
+                  </p>
+                ) : selectedRouteAlertsLoading ? (
                   <p className="muted">Checking for service updates...</p>
                 ) : null}
-                {!selectedRouteAlertsLoading && selectedRouteAlerts ? (
+                {settings.serviceAlertsEnabled && !selectedRouteAlertsLoading && selectedRouteAlerts ? (
                   selectedRouteAlerts.alerts.length > 0 ? (
                     <div className="selected-alert-list">
                       {selectedRouteAlerts.alerts.map((alert) => (
@@ -1640,22 +1745,188 @@ function App() {
           </div>
 
           <div className="notification-list">
-            {personalizedNotifications.map((notification) => (
-              <div className="notification-card" key={notification.id}>
-                <span className="route-chip">
-                  {notification.transit_mode.toUpperCase()} {notification.line}
-                </span>
-                <strong>{notification.title}</strong>
-                <p>{notification.message}</p>
-              </div>
-            ))}
-            {personalizedNotifications.length === 0 ? (
+            {settings.routeUpdatesEnabled
+              ? personalizedNotifications.map((notification) => (
+                  <div className="notification-card" key={notification.id}>
+                    <span className="route-chip">
+                      {notification.transit_mode.toUpperCase()} {notification.line}
+                    </span>
+                    <strong>{notification.title}</strong>
+                    <p>{notification.message}</p>
+                  </div>
+                ))
+              : null}
+            {!settings.routeUpdatesEnabled ? (
+              <p className="empty-state">
+                Route update notifications are paused. You can turn them back on in Settings.
+              </p>
+            ) : personalizedNotifications.length === 0 ? (
               <p className="empty-state">
                 No frequent-route updates yet. Once you log a few rides, TapWise will keep an eye on those lines for you.
               </p>
             ) : null}
           </div>
+        </article>
 
+        <article
+          className={
+            dashboardTab === "settings"
+              ? "panel settings-panel"
+              : "panel settings-panel hidden-tab-content"
+          }
+        >
+          <div className="panel-header-row">
+            <div>
+              <p className="panel-label">Settings</p>
+              <h2>Notifications and display</h2>
+            </div>
+          </div>
+
+          <div className="settings-control-grid">
+            <label className="toggle-row">
+              <span>
+                <strong>Route update notifications</strong>
+                <small>Updates for the lines you ride most.</small>
+              </span>
+              <input
+                type="checkbox"
+                checked={settings.routeUpdatesEnabled}
+                onChange={(event) =>
+                  updateSettings("routeUpdatesEnabled", event.target.checked)
+                }
+              />
+            </label>
+            <label className="toggle-row">
+              <span>
+                <strong>Service changes</strong>
+                <small>Delay and service-change messages on the travel page.</small>
+              </span>
+              <input
+                type="checkbox"
+                checked={settings.serviceAlertsEnabled}
+                onChange={(event) =>
+                  updateSettings("serviceAlertsEnabled", event.target.checked)
+                }
+              />
+            </label>
+            <label className="toggle-row">
+              <span>
+                <strong>Transfer reminders</strong>
+                <small>Helpful reminders while a free transfer is active.</small>
+              </span>
+              <input
+                type="checkbox"
+                checked={settings.transferRemindersEnabled}
+                onChange={(event) =>
+                  updateSettings("transferRemindersEnabled", event.target.checked)
+                }
+              />
+            </label>
+            <label>
+              Notification frequency
+              <select
+                value={settings.notificationFrequency}
+                onChange={(event) =>
+                  updateSettings(
+                    "notificationFrequency",
+                    event.target.value as NotificationFrequency
+                  )
+                }
+              >
+                <option value="as_it_happens">As things happen</option>
+                <option value="daily">Daily summary</option>
+                <option value="weekly">Weekly summary</option>
+              </select>
+            </label>
+            <label>
+              Sound
+              <select
+                value={settings.soundOption}
+                onChange={(event) =>
+                  updateSettings("soundOption", event.target.value as SoundOption)
+                }
+              >
+                <option value="soft">Soft chime</option>
+                <option value="bright">Bright chime</option>
+                <option value="none">No sound</option>
+              </select>
+            </label>
+            <label>
+              Volume
+              <div className="volume-control">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={settings.notificationVolume}
+                  onChange={(event) =>
+                    updateSettings("notificationVolume", Number(event.target.value))
+                  }
+                  disabled={settings.soundOption === "none"}
+                />
+                <span>{settings.notificationVolume}%</span>
+              </div>
+            </label>
+            <div className="settings-theme-row">
+              <div>
+                <strong>Color theme</strong>
+                <span>Choose the TapWise look that feels best.</span>
+              </div>
+              <ThemeToggle theme={theme} onThemeChange={setTheme} />
+            </div>
+          </div>
+        </article>
+
+        <article
+          className={
+            dashboardTab === "settings"
+              ? "panel account-settings-panel"
+              : "panel account-settings-panel hidden-tab-content"
+          }
+        >
+          <div className="panel-header-row">
+            <div>
+              <p className="panel-label">Account</p>
+              <h2>Your profile</h2>
+            </div>
+          </div>
+          <div className="account-summary">
+            <strong>{user.username}</strong>
+            <span>{user.email}</span>
+          </div>
+          <div className="account-action-list">
+            <button type="button" className="secondary-button" onClick={handleLogout}>
+              Log out
+            </button>
+            <button
+              type="button"
+              className="secondary-button danger-button"
+              onClick={() => void handleDeleteProfile()}
+              disabled={profileDeleting}
+            >
+              {profileDeleting ? "Deleting..." : "Delete profile"}
+            </button>
+          </div>
+        </article>
+
+        <article
+          className={
+            dashboardTab === "settings"
+              ? "panel route-settings-panel"
+              : "panel route-settings-panel hidden-tab-content"
+          }
+        >
+          <div className="panel-header-row">
+            <div>
+              <p className="panel-label">Route updates</p>
+              <h2>Frequent route notifications</h2>
+            </div>
+          </div>
+          {!settings.routeUpdatesEnabled ? (
+            <p className="empty-state">
+              Route update notifications are paused. Turn them back on above to use these route controls.
+            </p>
+          ) : null}
           <div className="frequent-route-list">
             {frequentRoutes.map((route) => {
               const routeKey = getFrequentRouteKey(route);
@@ -1676,13 +1947,18 @@ function App() {
                         : "secondary-button notification-toggle"
                     }
                     onClick={() => void handleNotificationToggle(route)}
-                    disabled={notificationUpdatingKey === routeKey}
+                    disabled={!settings.routeUpdatesEnabled || notificationUpdatingKey === routeKey}
                   >
                     {route.notifications_enabled ? "Updates on" : "Updates off"}
                   </button>
                 </div>
               );
             })}
+            {frequentRoutes.length === 0 ? (
+              <p className="empty-state">
+                Log a few rides and TapWise will show your regular lines here.
+              </p>
+            ) : null}
           </div>
         </article>
 

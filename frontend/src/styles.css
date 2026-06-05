@@ -620,7 +620,7 @@ p {
   top: 0.75rem;
   z-index: 4;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.35rem;
   padding: 0.35rem;
   border: 1px solid var(--line);
@@ -782,6 +782,21 @@ p {
   border-left: 5px solid var(--mta-red);
 }
 
+.settings-panel {
+  grid-column: span 8;
+  border-left: 5px solid var(--mta-blue);
+}
+
+.account-settings-panel {
+  grid-column: span 4;
+  border-left: 5px solid var(--mta-orange);
+}
+
+.route-settings-panel {
+  grid-column: span 12;
+  border-left: 5px solid var(--mta-green);
+}
+
 .payment-panel {
   grid-column: span 7;
   border-left: 5px solid var(--mta-orange);
@@ -803,7 +818,8 @@ p {
 }
 
 .banner,
-.error {
+.error,
+.notice {
   border-radius: 8px;
   padding: 0.85rem 1rem;
   font-weight: 700;
@@ -817,6 +833,12 @@ p {
 .banner.error {
   border: 1px solid rgba(238, 53, 46, 0.32);
   background: rgba(238, 53, 46, 0.12);
+}
+
+.notice {
+  color: var(--ink);
+  border: 1px solid rgba(0, 147, 60, 0.34);
+  background: rgba(0, 147, 60, 0.14);
 }
 
 .banner.transfer {
@@ -1232,6 +1254,88 @@ p {
   color: var(--ink);
 }
 
+.settings-control-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.toggle-row,
+.settings-theme-row,
+.account-summary {
+  min-height: 72px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 0.85rem;
+}
+
+.toggle-row,
+.settings-theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.toggle-row input {
+  width: 22px;
+  min-height: 22px;
+  flex: 0 0 auto;
+}
+
+.toggle-row span,
+.settings-theme-row div,
+.account-summary {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.toggle-row small,
+.settings-theme-row span,
+.account-summary span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.volume-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3.5rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.volume-control input {
+  padding: 0;
+}
+
+.volume-control span {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 900;
+  text-align: right;
+}
+
+.settings-theme-row {
+  grid-column: span 2;
+}
+
+.account-action-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.danger-button {
+  border-color: rgba(238, 53, 46, 0.32);
+  color: var(--danger);
+}
+
+.danger-button:hover {
+  background: rgba(238, 53, 46, 0.12);
+}
+
 .ghost-button {
   white-space: nowrap;
 }
@@ -1363,7 +1467,10 @@ p {
   .progress-panel,
   .route-board-panel,
   .alerts-panel,
+  .settings-panel,
+  .account-settings-panel,
   .payment-panel,
+  .route-settings-panel,
   .ride-logging-panel {
     grid-column: span 12;
   }
@@ -1438,6 +1545,17 @@ p {
 
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .settings-control-grid,
+  .settings-theme-row {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-theme-row {
+    grid-column: auto;
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .auth-panel-top,
