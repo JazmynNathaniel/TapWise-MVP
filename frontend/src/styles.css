@@ -590,6 +590,70 @@ p {
   flex-wrap: wrap;
 }
 
+.dashboard-tabs {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.dashboard-tabs button {
+  display: grid;
+  gap: 0.1rem;
+  align-content: center;
+  min-height: 62px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  color: var(--ink);
+  text-align: left;
+  padding: 0.72rem 0.9rem;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.dashboard-tabs button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+}
+
+.dashboard-tabs button.active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #ffffff;
+}
+
+.dashboard-tabs span {
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.dashboard-tabs small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.dashboard-tabs button.active small {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.hidden-tab-content {
+  display: none !important;
+}
+
 .user-pill,
 .selected-method-pill,
 .detail-chip,
@@ -1366,6 +1430,15 @@ p {
   .mode-toggle,
   .theme-toggle {
     width: 100%;
+  }
+
+  .dashboard-tabs {
+    top: 0.5rem;
+  }
+
+  .dashboard-tabs button {
+    min-height: 58px;
+    padding: 0.62rem 0.7rem;
   }
 
   .user-pill {

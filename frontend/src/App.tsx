@@ -36,6 +36,7 @@ const PAYMENT_TYPE_OPTIONS = [
 
 type AuthMode = "login" | "register";
 type ThemeMode = "dark" | "light";
+type DashboardTab = "fare" | "travel";
 
 type PaymentFormState = {
   label: string;
@@ -419,6 +420,7 @@ async function sha256Hex(value: string) {
 
 function App() {
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
+  const [dashboardTab, setDashboardTab] = useState<DashboardTab>("fare");
   const [mode, setMode] = useState<AuthMode>("register");
   const [username, setUsername] = useState("tapwise_rider");
   const [email, setEmail] = useState("demo@tapwise.app");
@@ -1174,7 +1176,39 @@ function App() {
         </div>
       ) : null}
 
-      <section className="status-strip" aria-label="TapWise account summary">
+      <div className="dashboard-tabs" role="tablist" aria-label="Dashboard views">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={dashboardTab === "fare"}
+          className={dashboardTab === "fare" ? "active" : ""}
+          onClick={() => setDashboardTab("fare")}
+        >
+          <span>Fare tracking</span>
+          <small>
+            {fareStatus?.free_rides_active ? "Free rides active" : `${ridesRemaining} left`}
+          </small>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={dashboardTab === "travel"}
+          className={dashboardTab === "travel" ? "active" : ""}
+          onClick={() => setDashboardTab("travel")}
+        >
+          <span>Travel</span>
+          <small>
+            {selectedRouteLine
+              ? `${formatModeLabel(selectedRouteMode)} ${selectedRouteLine}`
+              : "Routes"}
+          </small>
+        </button>
+      </div>
+
+      <section
+        className={dashboardTab === "fare" ? "status-strip" : "status-strip hidden-tab-content"}
+        aria-label="TapWise account summary"
+      >
         <div className="stat-tile">
           <span>Payment methods</span>
           <strong>{paymentMethods.length}</strong>
@@ -1194,7 +1228,13 @@ function App() {
       </section>
 
       <section className="grid">
-        <article className="panel recommendation-panel">
+        <article
+          className={
+            dashboardTab === "fare"
+              ? "panel recommendation-panel"
+              : "panel recommendation-panel hidden-tab-content"
+          }
+        >
           <div>
             <p className="panel-label">Best next tap</p>
             <h2>{recommendation?.message ?? "Finding your best next tap..."}</h2>
@@ -1208,7 +1248,13 @@ function App() {
           </div>
         </article>
 
-        <article className="panel payment-panel">
+        <article
+          className={
+            dashboardTab === "fare"
+              ? "panel payment-panel"
+              : "panel payment-panel hidden-tab-content"
+          }
+        >
           <div className="panel-header-row">
             <p className="panel-label">Payment Methods</p>
             <button
@@ -1292,7 +1338,13 @@ function App() {
           </form>
         </article>
 
-        <article className="panel progress-panel">
+        <article
+          className={
+            dashboardTab === "fare"
+              ? "panel progress-panel"
+              : "panel progress-panel hidden-tab-content"
+          }
+        >
           <div className="progress-heading">
             <div>
               <p className="panel-label">Fare cap status</p>
@@ -1333,7 +1385,13 @@ function App() {
           ) : null}
         </article>
 
-        <article className="panel route-board-panel">
+        <article
+          className={
+            dashboardTab === "travel"
+              ? "panel route-board-panel"
+              : "panel route-board-panel hidden-tab-content"
+          }
+        >
           <div className="panel-header-row">
             <div>
               <p className="panel-label">Route board</p>
@@ -1476,7 +1534,13 @@ function App() {
           </div>
         </article>
 
-        <article className="panel alerts-panel">
+        <article
+          className={
+            dashboardTab === "travel"
+              ? "panel alerts-panel"
+              : "panel alerts-panel hidden-tab-content"
+          }
+        >
           <div className="panel-header-row">
             <div>
               <p className="panel-label">Service updates</p>
@@ -1531,7 +1595,13 @@ function App() {
           </div>
         </article>
 
-        <article className="panel ride-logging-panel">
+        <article
+          className={
+            dashboardTab === "fare"
+              ? "panel ride-logging-panel"
+              : "panel ride-logging-panel hidden-tab-content"
+          }
+        >
           <div className="panel-header-row">
             <div>
               <p className="panel-label">Ride logging</p>
@@ -1654,7 +1724,13 @@ function App() {
           </div>
         </article>
 
-        <article className="panel ride-history">
+        <article
+          className={
+            dashboardTab === "fare"
+              ? "panel ride-history"
+              : "panel ride-history hidden-tab-content"
+          }
+        >
           <div className="panel-header-row">
             <div>
               <p className="panel-label">Ride history</p>
