@@ -21,6 +21,7 @@ class FareRide:
     id: int | None
     timestamp: datetime
     transit_mode: str
+    transit_line: str
 
 
 @dataclass(frozen=True)
@@ -111,18 +112,31 @@ def _normalize_transit_mode(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
-def _opposite_transfer_mode(transit_mode: str | None) -> str | None:
+def _transfer_target_mode(transit_mode: str | None) -> str | None:
     mode = _normalize_transit_mode(transit_mode)
-    if mode == "bus":
-        return "subway"
-    if mode == "subway":
-        return "bus"
+    if mode in TRANSFER_MODES:
+        return mode
     return None
+
+
+def _is_valid_transfer(source: FareRide, next_ride: FareRide) -> bool:
+    if source.transit_mode == "subway":
+        return next_ride.transit_mode == "bus"
+    if source.transit_mode == "bus":
+        if next_ride.transit_mode == "subway":
+            return True
+        return (
+            next_ride.transit_mode == "bus"
+            and source.transit_line
+            and next_ride.transit_line
+            and source.transit_line != next_ride.transit_line
+        )
+    return False
 
 
 def _as_fare_ride(value) -> FareRide:
     if isinstance(value, datetime):
-        return FareRide(id=None, timestamp=ensure_utc(value), transit_mode="")
+        return FareRide(id=None, timestamp=ensure_utc(value), transit_mode="", transit_line="")
 
     timestamp = getattr(value, "timestamp", None)
     if not isinstance(timestamp, datetime):
@@ -136,6 +150,7 @@ def _as_fare_ride(value) -> FareRide:
         id=ride_id,
         timestamp=ensure_utc(timestamp),
         transit_mode=_normalize_transit_mode(getattr(value, "transit_mode", "")),
+        transit_line=(getattr(value, "transit_line", "") or "").strip(),
     )
 
 
@@ -153,14 +168,11 @@ def analyze_rides(
     pending_transfer_expires_at: datetime | None = None
 
     for ride in rides:
-        pending_target_mode = _opposite_transfer_mode(
-            pending_transfer_source.transit_mode if pending_transfer_source else None
-        )
         transfer_is_valid = (
             pending_transfer_source is not None
             and pending_transfer_expires_at is not None
             and ride.timestamp <= pending_transfer_expires_at
-            and pending_target_mode == ride.transit_mode
+            and _is_valid_transfer(pending_transfer_source, ride)
         )
 
         if transfer_is_valid:
@@ -179,7 +191,7 @@ def analyze_rides(
             pending_transfer_expires_at = None
             continue
 
-        target_mode = _opposite_transfer_mode(ride.transit_mode)
+        target_mode = _transfer_target_mode(ride.transit_mode)
         transfer_expires_at = (
             ride.timestamp + timedelta(hours=TRANSFER_WINDOW_HOURS)
             if target_mode
@@ -216,7 +228,7 @@ def analyze_rides(
             available=True,
             source_ride_id=pending_transfer_source.id,
             source_transit_mode=pending_transfer_source.transit_mode,
-            target_transit_mode=_opposite_transfer_mode(
+            target_transit_mode=_transfer_target_mode(
                 pending_transfer_source.transit_mode
             ),
             started_at=pending_transfer_source.timestamp,

@@ -2360,7 +2360,7 @@ function App() {
                     {ride.transit_mode.toUpperCase()} {ride.transit_line}
                   </span>
                   <span className={ride.is_transfer ? "fare-chip transfer-chip" : "fare-chip"}>
-                    {ride.is_transfer ? "Free transfer" : "Cap ride"}
+                    {ride.is_transfer ? "Free transfer used" : "Cap ride"}
                   </span>
                 </div>
               </div>
