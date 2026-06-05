@@ -8,6 +8,7 @@ import {
   Recommendation,
   Ride,
   RouteSummary,
+  ServiceAlertResponse,
   TransitOptions
 } from "./types";
 
@@ -18,9 +19,9 @@ function normalizeApiBase(rawValue?: string) {
 }
 
 const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE_URL);
-const GENERIC_ERROR_MESSAGE = "Something went wrong. Please try again.";
+const GENERIC_ERROR_MESSAGE = "Something went wrong on our side. Please try again in a moment.";
 const NETWORK_ERROR_MESSAGE =
-  "We could not reach TapWise. Check your connection and try again.";
+  "TapWise is having trouble connecting. Please check your connection and try again.";
 
 type PaymentMethodPayload = {
   label: string;
@@ -51,7 +52,7 @@ function friendlyErrorMessage(path: string, status: number) {
   }
   if (path.startsWith("/auth/register")) {
     if (status === 409) {
-      return "We could not create that account. Please try different details.";
+      return "We couldn't create that account. Please try different details.";
     }
     if (status === 400) {
       return "Please check your sign-up details and try again.";
@@ -67,7 +68,7 @@ function friendlyErrorMessage(path: string, status: number) {
     return "You do not have access to that action.";
   }
   if (status === 404) {
-    return "We could not find that information.";
+    return "We couldn't find that information.";
   }
   if (status === 409) {
     return "That information is already in use.";
@@ -144,6 +145,13 @@ export const api = {
       stop
     });
     return request<ArrivalResponse>(`/arrivals?${query.toString()}`, {}, token);
+  },
+  getServiceAlerts(token: string, mode: string, line: string) {
+    const query = new URLSearchParams({
+      mode,
+      line
+    });
+    return request<ServiceAlertResponse>(`/service-alerts?${query.toString()}`, {}, token);
   },
   getPersonalizedAlerts(token: string) {
     return request<PersonalizedAlerts>("/personalized-alerts", {}, token);

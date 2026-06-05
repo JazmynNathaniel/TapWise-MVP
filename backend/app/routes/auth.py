@@ -32,10 +32,10 @@ def register():
 
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
-        return jsonify({"error": "We could not create that account."}), 409
+        return jsonify({"error": "We couldn't create that account."}), 409
     existing_username = User.query.filter_by(username=username).first()
     if existing_username:
-        return jsonify({"error": "We could not create that account."}), 409
+        return jsonify({"error": "We couldn't create that account."}), 409
 
     user = User(
         email=email,

@@ -21,9 +21,9 @@ SUBWAY_ALERTS_FEED = f"{MTA_GTFS_RT_BASE}/camsys%2Fsubway-alerts"
 BUS_TRIP_UPDATES_FEED = "https://gtfsrt.prod.obanyc.com/tripUpdates"
 BUS_ALERTS_FEED = "https://gtfsrt.prod.obanyc.com/alerts"
 CACHE_SECONDS = 30
-LIVE_UPDATES_UNAVAILABLE = "Live transit updates are temporarily unavailable."
-ARRIVALS_UNAVAILABLE = "Live arrivals are temporarily unavailable."
-ALERTS_UNAVAILABLE = "Service alerts are temporarily unavailable."
+LIVE_UPDATES_UNAVAILABLE = "Live updates are taking a moment. Please check again soon."
+ARRIVALS_UNAVAILABLE = "Live arrivals are taking a moment. Please check again soon."
+ALERTS_UNAVAILABLE = "Service updates are taking a moment. Please check again soon."
 
 SUBWAY_ROUTE_FEEDS = {
     "1": "nyct%2Fgtfs",
@@ -252,7 +252,7 @@ def get_next_arrivals(
     if not stop_ids:
         return _feed_response(
             status="unavailable",
-            message="Live arrivals are not available for this stop yet.",
+            message="We don't have live arrivals for this stop yet.",
             arrivals=[],
         )
 
@@ -261,7 +261,7 @@ def get_next_arrivals(
         if not feed_url:
             return _feed_response(
                 status="unavailable",
-                message="Live bus arrivals are not available yet.",
+                message="Live bus arrivals are not connected yet.",
                 arrivals=[],
             )
         feed_urls = [feed_url]
@@ -271,7 +271,7 @@ def get_next_arrivals(
     if not feed_urls:
         return _feed_response(
             status="unavailable",
-            message="Live arrivals are not available for this route yet.",
+            message="We don't have live arrivals for this route yet.",
             arrivals=[],
         )
 
@@ -305,9 +305,9 @@ def get_next_arrivals(
     return _feed_response(
         status="ok" if sorted_arrivals else "empty",
         message=(
-            "Live arrivals loaded."
+            "Live arrivals are ready."
             if sorted_arrivals
-            else "No upcoming live arrivals were found for this stop."
+            else "No upcoming arrivals to show for this stop right now. Check again in a moment."
         ),
         arrivals=sorted_arrivals,
     )
@@ -422,7 +422,7 @@ def get_service_alerts(
         if active_mode == "bus":
             feed_url = _bus_feed_url(BUS_ALERTS_FEED)
             if not feed_url:
-                messages.append("Live bus alerts are not available yet.")
+                messages.append("Live bus service updates are not connected yet.")
                 continue
         else:
             feed_url = SUBWAY_ALERTS_FEED
@@ -447,6 +447,6 @@ def get_service_alerts(
 
     return _feed_response(
         status=status,
-        message=" ".join(messages) if messages else "Service alerts loaded.",
+        message=" ".join(messages) if messages else "Service updates are ready.",
         alerts=alerts[:limit],
     )

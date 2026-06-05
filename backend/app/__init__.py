@@ -20,8 +20,8 @@ API_ERROR_MESSAGES = {
     400: "Please check your information and try again.",
     401: "Please sign in again.",
     403: "You do not have access to that action.",
-    404: "We could not find that information.",
-    405: "That action is not available.",
+    404: "We couldn't find that information.",
+    405: "That action isn't available right now.",
     409: "That information is already in use.",
     429: "Please wait a moment and try again.",
 }
@@ -32,7 +32,8 @@ def _safe_api_error(status_code: int):
         jsonify(
             {
                 "error": API_ERROR_MESSAGES.get(
-                    status_code, "Something went wrong. Please try again."
+                    status_code,
+                    "Something went wrong on our side. Please try again in a moment.",
                 )
             }
         ),

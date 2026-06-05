@@ -9,6 +9,7 @@ import {
   Recommendation,
   Ride,
   RouteSummary,
+  ServiceAlertResponse,
   TransitOptions,
   User
 } from "./types";
@@ -443,6 +444,8 @@ function App() {
   const [selectedRouteStop, setSelectedRouteStop] = useState("");
   const [arrivalBoard, setArrivalBoard] = useState<ArrivalResponse | null>(null);
   const [arrivalLoading, setArrivalLoading] = useState(false);
+  const [selectedRouteAlerts, setSelectedRouteAlerts] = useState<ServiceAlertResponse | null>(null);
+  const [selectedRouteAlertsLoading, setSelectedRouteAlertsLoading] = useState(false);
   const [notificationUpdatingKey, setNotificationUpdatingKey] = useState("");
   const [rideTimingMode, setRideTimingMode] = useState<RideTimingMode>("now");
   const [manualRideDate, setManualRideDate] = useState(() => createManualRideDateTime().date);
@@ -593,6 +596,12 @@ function App() {
       })
       .catch((error: Error) => {
         if (!cancelled) {
+          if (error.message === SESSION_ENDED_MESSAGE) {
+            handleLogout();
+            setAuthError(error.message);
+            return;
+          }
+
           setArrivalBoard({
             status: "unavailable",
             message: error.message,
@@ -611,6 +620,50 @@ function App() {
       cancelled = true;
     };
   }, [selectedRouteLine, selectedRouteMode, selectedRouteStop, token]);
+
+  useEffect(() => {
+    if (!token || !selectedRouteLine) {
+      setSelectedRouteAlerts(null);
+      return;
+    }
+
+    let cancelled = false;
+    setSelectedRouteAlertsLoading(true);
+    void api
+      .getServiceAlerts(token, selectedRouteMode, selectedRouteLine)
+      .then((payload) => {
+        if (!cancelled) {
+          setSelectedRouteAlerts(payload);
+        }
+      })
+      .catch((error: Error) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (error.message === SESSION_ENDED_MESSAGE) {
+          handleLogout();
+          setAuthError(error.message);
+          return;
+        }
+
+        setSelectedRouteAlerts({
+          status: "unavailable",
+          message: error.message,
+          generated_at: new Date().toISOString(),
+          alerts: []
+        });
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSelectedRouteAlertsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRouteLine, selectedRouteMode, token]);
 
   useEffect(() => {
     if (!activeTransferNotice) {
@@ -1144,7 +1197,7 @@ function App() {
         <article className="panel recommendation-panel">
           <div>
             <p className="panel-label">Best next tap</p>
-            <h2>{recommendation?.message ?? "Loading recommendation..."}</h2>
+            <h2>{recommendation?.message ?? "Finding your best next tap..."}</h2>
             <p className="muted">
               {recommendation?.warning ?? "TapWise recalculates this after every ride."}
             </p>
@@ -1342,7 +1395,7 @@ function App() {
                   </strong>
                   <span>{selectedRouteStop || "Select a stop"}</span>
                 </div>
-                {arrivalLoading ? <p className="muted">Loading arrivals...</p> : null}
+                {arrivalLoading ? <p className="muted">Checking live arrivals...</p> : null}
                 {!arrivalLoading && arrivalBoard ? (
                   <>
                     <div className="arrival-list">
@@ -1367,6 +1420,37 @@ function App() {
                       <p className="muted helper-copy">{arrivalBoard.message}</p>
                     )}
                   </>
+                ) : null}
+              </div>
+
+              <div className="selected-alert-board" aria-live="polite">
+                <div className="arrival-board-heading">
+                  <strong>Delays and service changes</strong>
+                  <span>{selectedRouteLine || "Select a route"}</span>
+                </div>
+                {selectedRouteAlertsLoading ? (
+                  <p className="muted">Checking for service updates...</p>
+                ) : null}
+                {!selectedRouteAlertsLoading && selectedRouteAlerts ? (
+                  selectedRouteAlerts.alerts.length > 0 ? (
+                    <div className="selected-alert-list">
+                      {selectedRouteAlerts.alerts.map((alert) => (
+                        <div className="selected-alert-card" key={alert.id}>
+                          <span className="route-chip">
+                            {alert.transit_mode.toUpperCase()} {alert.line ?? selectedRouteLine}
+                          </span>
+                          <strong>{alert.title}</strong>
+                          <p>{alert.description || alert.effect || "Service change reported."}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="empty-state">
+                      {selectedRouteAlerts.status === "ok"
+                        ? "No alerts or service changes to report. You're all set. Safe travels!"
+                        : selectedRouteAlerts.message}
+                    </p>
+                  )
                 ) : null}
               </div>
             </div>
@@ -1395,7 +1479,7 @@ function App() {
         <article className="panel alerts-panel">
           <div className="panel-header-row">
             <div>
-              <p className="panel-label">Service alerts</p>
+              <p className="panel-label">Service updates</p>
               <h2>Frequent routes</h2>
             </div>
           </div>
@@ -1412,7 +1496,7 @@ function App() {
             ))}
             {personalizedNotifications.length === 0 ? (
               <p className="empty-state">
-                No active alerts for frequent routes. Alerts will appear after you log rides.
+                No frequent-route updates yet. Once you log a few rides, TapWise will keep an eye on those lines for you.
               </p>
             ) : null}
           </div>
@@ -1439,7 +1523,7 @@ function App() {
                     onClick={() => void handleNotificationToggle(route)}
                     disabled={notificationUpdatingKey === routeKey}
                   >
-                    {route.notifications_enabled ? "Alerts on" : "Alerts off"}
+                    {route.notifications_enabled ? "Updates on" : "Updates off"}
                   </button>
                 </div>
               );
@@ -1454,7 +1538,7 @@ function App() {
               <h2>Add a trip</h2>
             </div>
             <span className="selected-method-pill">
-              {selectedMethod ? selectedMethod.label : "No payment selected"}
+              {selectedMethod ? selectedMethod.label : "Choose a payment method"}
             </span>
           </div>
           <div className="ride-actions">
@@ -1577,7 +1661,7 @@ function App() {
               <h2>{rides.length} logged rides</h2>
             </div>
           </div>
-          {loading ? <p className="muted">Loading rides...</p> : null}
+          {loading ? <p className="muted">Getting your rides ready...</p> : null}
           <div className="ride-list">
             {rides.map((ride) => (
               <div className="ride-row" key={ride.id}>
@@ -1601,7 +1685,7 @@ function App() {
               </div>
             ))}
             {rides.length === 0 ? (
-              <p className="empty-state">No rides logged yet. Add a trip to see history here.</p>
+              <p className="empty-state">No rides logged yet. Add your first trip when you're ready.</p>
             ) : null}
           </div>
         </article>

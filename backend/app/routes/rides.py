@@ -100,7 +100,7 @@ def create_ride():
         id=payment_method_id, user_id=user_id
     ).first()
     if not payment_method:
-        return jsonify({"error": "We could not find that payment method."}), 404
+        return jsonify({"error": "We couldn't find that payment method."}), 404
 
     ride = Ride(
         user_id=user_id,

@@ -82,6 +82,13 @@ export type ServiceAlert = {
   }>;
 };
 
+export type ServiceAlertResponse = {
+  status: "ok" | "empty" | "partial" | "unavailable";
+  message: string;
+  generated_at: string;
+  alerts: ServiceAlert[];
+};
+
 export type FrequentRoute = {
   transit_mode: "subway" | "bus";
   line: string;
