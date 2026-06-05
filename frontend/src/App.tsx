@@ -44,7 +44,7 @@ const PAYMENT_TYPE_OPTIONS = [
 
 type AuthMode = "login" | "register";
 type ThemeMode = "dark" | "light";
-type DashboardTab = "fare" | "travel" | "settings";
+type DashboardTab = "fare" | "travel" | "payments" | "rides" | "settings";
 type NotificationFrequency = "as_it_happens" | "daily" | "weekly";
 type SoundOption = "service_change" | "travel_update" | "soft" | "bright" | "none";
 
@@ -1455,6 +1455,26 @@ function App() {
         <button
           type="button"
           role="tab"
+          aria-selected={dashboardTab === "payments"}
+          className={dashboardTab === "payments" ? "active" : ""}
+          onClick={() => setDashboardTab("payments")}
+        >
+          <span>Payments</span>
+          <small>{paymentMethods.length} saved</small>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={dashboardTab === "rides"}
+          className={dashboardTab === "rides" ? "active" : ""}
+          onClick={() => setDashboardTab("rides")}
+        >
+          <span>Rides</span>
+          <small>{rides.length} logged</small>
+        </button>
+        <button
+          type="button"
+          role="tab"
           aria-selected={dashboardTab === "settings"}
           className={dashboardTab === "settings" ? "active" : ""}
           onClick={() => setDashboardTab("settings")}
@@ -1509,7 +1529,7 @@ function App() {
 
         <article
           className={
-            dashboardTab === "fare"
+            dashboardTab === "payments"
               ? "panel payment-panel"
               : "panel payment-panel hidden-tab-content"
           }
@@ -2063,7 +2083,7 @@ function App() {
 
         <article
           className={
-            dashboardTab === "fare"
+            dashboardTab === "rides"
               ? "panel ride-logging-panel"
               : "panel ride-logging-panel hidden-tab-content"
           }
@@ -2192,7 +2212,7 @@ function App() {
 
         <article
           className={
-            dashboardTab === "fare"
+            dashboardTab === "rides"
               ? "panel ride-history"
               : "panel ride-history hidden-tab-content"
           }

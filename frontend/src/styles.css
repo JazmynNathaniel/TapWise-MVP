@@ -654,7 +654,7 @@ p {
   top: 0.75rem;
   z-index: 4;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.35rem;
   padding: 0.35rem;
   border: 1px solid var(--line);
@@ -834,12 +834,12 @@ p {
 }
 
 .payment-panel {
-  grid-column: span 7;
+  grid-column: span 12;
   border-left: 5px solid var(--mta-orange);
 }
 
 .ride-logging-panel {
-  grid-column: span 5;
+  grid-column: span 12;
   border-left: 5px solid var(--mta-yellow);
 }
 
@@ -1681,16 +1681,13 @@ p {
 
   .dashboard-tabs button {
     justify-items: center;
-    min-height: 56px;
-    padding: 0.55rem 0.45rem;
+    min-height: 54px;
+    padding: 0.55rem 0.35rem;
     text-align: center;
   }
 
   .dashboard-tabs small {
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: none;
   }
 
   .direction-card-grid {
