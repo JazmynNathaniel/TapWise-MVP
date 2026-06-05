@@ -441,6 +441,31 @@ p {
   color: var(--ink);
 }
 
+.feature-preview-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.feature-preview-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.feature-preview-list strong {
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.feature-preview-list span {
+  color: var(--muted);
+  text-align: right;
+}
+
 .fare-preview-meter {
   height: 14px;
   overflow: hidden;

@@ -1054,38 +1054,48 @@ function App() {
             </div>
           </div>
           <h1 id="auth-title">TapWise</h1>
-          <p className="auth-tagline">Know which tap gets you to free rides faster.</p>
+          <p className="auth-tagline">Know your fare, your route, and what is coming next.</p>
           <p className="lede">
-            Track subway and bus rides by card or device, compare active 7-day
-            windows, and keep every payment method moving toward the weekly cap.
+            TapWise helps you choose the right card, see upcoming subway and bus
+            arrivals, and keep an eye on service changes for the routes you use most.
           </p>
 
-          <div className="auth-stat-grid" aria-label="TapWise fare tracking summary">
+          <div className="auth-stat-grid" aria-label="TapWise app features">
             <div>
-              <strong>12</strong>
-              <span>cap-counting rides</span>
+              <strong>Fares</strong>
+              <span>rides left toward free trips</span>
             </div>
             <div>
-              <strong>7 days</strong>
-              <span>per payment window</span>
+              <strong>Travel</strong>
+              <span>next train or bus by route</span>
             </div>
             <div>
-              <strong>1 tap</strong>
-              <span>recommended per ride</span>
+              <strong>Alerts</strong>
+              <span>updates for familiar lines</span>
             </div>
           </div>
 
-          <div className="fare-preview" aria-label="Example fare cap progress">
+          <div className="fare-preview" aria-label="TapWise feature preview">
             <div className="fare-preview-header">
-              <span>Work Visa</span>
-              <strong>8 / 12 cap rides</strong>
+              <span>Today in TapWise</span>
+              <strong>Fare + travel</strong>
             </div>
             <div className="fare-preview-meter">
               <span />
             </div>
-            <div className="fare-preview-footer">
-              <span>4 rides left</span>
-              <span>Window ends Friday</span>
+            <div className="feature-preview-list">
+              <div>
+                <strong>4 rides left</strong>
+                <span>Best card for your next tap</span>
+              </div>
+              <div>
+                <strong>3 min</strong>
+                <span>Next train toward South Ferry</span>
+              </div>
+              <div>
+                <strong>All clear</strong>
+                <span>No alerts for your usual route</span>
+              </div>
             </div>
           </div>
         </section>
