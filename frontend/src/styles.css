@@ -122,6 +122,13 @@ label {
   font-weight: 700;
 }
 
+.field-helper {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.38;
+}
+
 h1,
 h2,
 p {

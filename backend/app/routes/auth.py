@@ -6,6 +6,11 @@ from ..extensions import db
 from ..models import User
 
 auth_bp = Blueprint("auth", __name__)
+PASSWORD_SPECIAL_CHARACTERS = "!@#$%^&*_-"
+PASSWORD_RULE_MESSAGE = (
+    "Password must include one capital letter, one number, one special "
+    "character (!@#$%^&*_-), and no spaces."
+)
 
 
 def _serialize_user(user: User) -> dict:
@@ -14,6 +19,18 @@ def _serialize_user(user: User) -> dict:
 
 def _normalize_username(raw_value: str) -> str:
     return (raw_value or "").strip().lower()
+
+
+def _validate_password(password: str) -> str | None:
+    if any(character.isspace() for character in password):
+        return PASSWORD_RULE_MESSAGE
+    if not any(character.isupper() for character in password):
+        return PASSWORD_RULE_MESSAGE
+    if not any(character.isdigit() for character in password):
+        return PASSWORD_RULE_MESSAGE
+    if not any(character in PASSWORD_SPECIAL_CHARACTERS for character in password):
+        return PASSWORD_RULE_MESSAGE
+    return None
 
 
 @auth_bp.post("/register")
@@ -29,6 +46,9 @@ def register():
         return jsonify({"error": "Username must be between 3 and 30 characters."}), 400
     if any(character not in "abcdefghijklmnopqrstuvwxyz0123456789_" for character in username):
         return jsonify({"error": "Username may contain only letters, numbers, and underscores."}), 400
+    password_error = _validate_password(password)
+    if password_error:
+        return jsonify({"error": password_error}), 400
 
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:

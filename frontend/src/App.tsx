@@ -28,6 +28,8 @@ const THEME_KEY = "tapwise_theme";
 const SETTINGS_KEY = "tapwise_settings";
 const SILENCED_TRANSFER_NOTIFICATIONS_KEY = "tapwise_silenced_transfer_notifications";
 const SESSION_ENDED_MESSAGE = "Your session has ended. Please sign in again.";
+const PASSWORD_RULE_MESSAGE =
+  "Password must include one capital letter, one number, one special character (!@#$%^&*_-), and no spaces.";
 const FARE_CAP_RIDES = 12;
 const TRANSFER_WINDOW_SECONDS = 2 * 60 * 60;
 const TRANSFER_REMINDER_SECONDS = 30 * 60;
@@ -585,6 +587,19 @@ function validateRideForm(form: RideFormState) {
   return null;
 }
 
+function validatePassword(value: string) {
+  if (
+    /\s/.test(value) ||
+    !/[A-Z]/.test(value) ||
+    !/[0-9]/.test(value) ||
+    !/[!@#$%^&*_-]/.test(value)
+  ) {
+    return PASSWORD_RULE_MESSAGE;
+  }
+
+  return null;
+}
+
 async function sha256Hex(value: string) {
   const encoded = new TextEncoder().encode(value);
   const buffer = await window.crypto.subtle.digest("SHA-256", encoded);
@@ -600,7 +615,7 @@ function App() {
   const [mode, setMode] = useState<AuthMode>("register");
   const [username, setUsername] = useState("tapwise_rider");
   const [email, setEmail] = useState("demo@tapwise.app");
-  const [password, setPassword] = useState("password123");
+  const [password, setPassword] = useState("Password123!");
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState<User | null>(() => hydrateStoredUser(localStorage.getItem(USER_KEY)));
   const [hasAuthenticatedBefore, setHasAuthenticatedBefore] = useState(
@@ -989,6 +1004,15 @@ function App() {
 
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (mode === "register") {
+      const passwordError = validatePassword(password);
+      if (passwordError) {
+        setAuthNotice("");
+        setAuthError(passwordError);
+        return;
+      }
+    }
+
     try {
       setAuthError("");
       setAuthNotice("");
@@ -1314,6 +1338,10 @@ function App() {
                   placeholder="tapwise_rider"
                   required
                 />
+                <span className="field-helper">
+                  Your username does not need to be your real name. Usernames are
+                  unique and can only belong to one TapWise account.
+                </span>
               </label>
             ) : null}
             <label>
@@ -1333,6 +1361,12 @@ function App() {
                 onChange={(event) => setPassword(event.target.value)}
                 required
               />
+              {mode === "register" ? (
+                <span className="field-helper">
+                  Use one capital letter, one number, and one special character
+                  (!@#$%^&*_-). Spaces are not allowed.
+                </span>
+              ) : null}
             </label>
             {authNotice ? <p className="notice">{authNotice}</p> : null}
             {authError ? <p className="error">{authError}</p> : null}
