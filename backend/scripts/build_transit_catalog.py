@@ -3,6 +3,9 @@ from __future__ import annotations
 import csv
 import io
 import json
+import os
+import time
+import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -20,7 +23,32 @@ FEEDS = {
     ],
 }
 
-OUTPUT_PATH = Path(__file__).resolve().parent.parent / "app" / "data" / "transit_catalog.json"
+DATA_DIR = Path(__file__).resolve().parent.parent / "app" / "data"
+OUTPUT_PATH = DATA_DIR / "transit_catalog.json"
+METADATA_OUTPUT_PATH = DATA_DIR / "transit_metadata.json"
+
+
+def _load_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _metadata_from_catalog(catalog: dict) -> dict:
+    return {
+        mode: {
+            line: [{"name": stop, "stop_ids": [], "route_ids": [line]} for stop in stops]
+            for line, stops in line_options.items()
+        }
+        for mode, line_options in catalog.items()
+    }
+
+
+def _selected_modes() -> set[str]:
+    raw_value = os.getenv("TRANSIT_CATALOG_MODES", "").strip()
+    if not raw_value:
+        return set(FEEDS)
+    return {mode.strip().lower() for mode in raw_value.split(",") if mode.strip()}
 
 
 def _read_csv(zip_file: zipfile.ZipFile, name: str):
@@ -30,12 +58,27 @@ def _read_csv(zip_file: zipfile.ZipFile, name: str):
 
 
 def _download_zip(url: str) -> zipfile.ZipFile:
-    with urllib.request.urlopen(url) as response:
-        payload = response.read()
-    return zipfile.ZipFile(io.BytesIO(payload))
+    cache_dir = os.getenv("GTFS_CACHE_DIR", "").strip()
+    if cache_dir:
+        cached_path = Path(cache_dir) / Path(urllib.parse.urlparse(url).path).name
+        if cached_path.exists():
+            return zipfile.ZipFile(cached_path)
+
+    request = urllib.request.Request(url, headers={"User-Agent": "TapWise/1.0"})
+    last_error = None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(request, timeout=45) as response:
+                payload = response.read()
+            return zipfile.ZipFile(io.BytesIO(payload))
+        except OSError as error:
+            last_error = error
+            if attempt < 2:
+                time.sleep(2 + attempt)
+    raise last_error
 
 
-def _build_route_stop_map(url: str) -> dict[str, list[str]]:
+def _build_route_stop_map(url: str) -> tuple[dict[str, list[str]], dict[str, list[dict]]]:
     with _download_zip(url) as zip_file:
         route_names = {}
         for row in _read_csv(zip_file, "routes.txt"):
@@ -44,19 +87,39 @@ def _build_route_stop_map(url: str) -> dict[str, list[str]]:
                 route_names[row["route_id"]] = route_name
 
         trip_to_route = {}
+        route_ids_by_name: dict[str, set[str]] = {}
         for row in _read_csv(zip_file, "trips.txt"):
             route_name = route_names.get(row["route_id"])
             if route_name:
                 trip_to_route[row["trip_id"]] = route_name
+                route_ids_by_name.setdefault(route_name, set()).add(row["route_id"])
 
         stop_names = {}
+        parent_station_by_stop_id = {}
         for row in _read_csv(zip_file, "stops.txt"):
-            stop_names[row["stop_id"]] = (row.get("stop_name") or "").strip()
+            stop_id = row["stop_id"]
+            stop_names[stop_id] = (row.get("stop_name") or "").strip()
+            parent_station_by_stop_id[stop_id] = (row.get("parent_station") or "").strip()
 
         best_trip_by_route: dict[str, list[str]] = {}
+        stop_ids_by_route_and_name: dict[str, dict[str, set[str]]] = {}
+        metadata_trip_counts_by_route: dict[str, int] = {}
         current_trip_id = None
         current_route_name = None
         current_stop_ids: list[str] = []
+
+        def add_metadata_stops(route_name: str, stop_ids: list[str]) -> None:
+            for stop_id in stop_ids:
+                stop_name = stop_names.get(stop_id, "")
+                if not stop_name:
+                    continue
+                route_stop_ids = stop_ids_by_route_and_name.setdefault(
+                    route_name, {}
+                ).setdefault(stop_name, set())
+                route_stop_ids.add(stop_id)
+                parent_station = parent_station_by_stop_id.get(stop_id)
+                if parent_station:
+                    route_stop_ids.add(parent_station)
 
         def flush_current_trip() -> None:
             nonlocal current_trip_id, current_route_name, current_stop_ids
@@ -70,19 +133,33 @@ def _build_route_stop_map(url: str) -> dict[str, list[str]]:
                     seen_stop_ids.add(stop_id)
             if len(deduped_stop_ids) > len(best_trip_by_route.get(current_route_name, [])):
                 best_trip_by_route[current_route_name] = deduped_stop_ids
+                add_metadata_stops(current_route_name, deduped_stop_ids)
+            if metadata_trip_counts_by_route.get(current_route_name, 0) < 8:
+                add_metadata_stops(current_route_name, deduped_stop_ids)
+                metadata_trip_counts_by_route[current_route_name] = (
+                    metadata_trip_counts_by_route.get(current_route_name, 0) + 1
+                )
 
-        for row in _read_csv(zip_file, "stop_times.txt"):
-            trip_id = row["trip_id"]
-            if trip_id != current_trip_id:
-                flush_current_trip()
-                current_trip_id = trip_id
-                current_route_name = trip_to_route.get(trip_id)
-                current_stop_ids = []
-            if current_route_name:
-                current_stop_ids.append(row["stop_id"])
+        with zip_file.open("stop_times.txt") as file:
+            text = io.TextIOWrapper(file, encoding="utf-8-sig", newline="")
+            reader = csv.reader(text)
+            headers = next(reader)
+            trip_id_index = headers.index("trip_id")
+            stop_id_index = headers.index("stop_id")
+
+            for row in reader:
+                trip_id = row[trip_id_index]
+                if trip_id != current_trip_id:
+                    flush_current_trip()
+                    current_trip_id = trip_id
+                    current_route_name = trip_to_route.get(trip_id)
+                    current_stop_ids = []
+                if current_route_name:
+                    current_stop_ids.append(row[stop_id_index])
         flush_current_trip()
 
         route_stop_map = {}
+        route_metadata = {}
         for route_name, stop_ids in best_trip_by_route.items():
             stop_list = []
             seen_names = set()
@@ -93,21 +170,43 @@ def _build_route_stop_map(url: str) -> dict[str, list[str]]:
                     seen_names.add(stop_name)
             if stop_list:
                 route_stop_map[route_name] = stop_list
+                route_metadata[route_name] = [
+                    {
+                        "name": stop_name,
+                        "stop_ids": sorted(
+                            stop_ids_by_route_and_name.get(route_name, {}).get(
+                                stop_name, set()
+                            )
+                        ),
+                        "route_ids": sorted(route_ids_by_name.get(route_name, set())),
+                    }
+                    for stop_name in stop_list
+                ]
 
-        return dict(sorted(route_stop_map.items()))
+        return dict(sorted(route_stop_map.items())), dict(sorted(route_metadata.items()))
 
 
 def main() -> None:
-    catalog = {"subway": {}, "bus": {}}
+    catalog = _load_json(OUTPUT_PATH) or {"subway": {}, "bus": {}}
+    metadata = _load_json(METADATA_OUTPUT_PATH) or _metadata_from_catalog(catalog)
     for mode, urls in FEEDS.items():
+        if mode not in _selected_modes():
+            continue
         combined = {}
+        combined_metadata = {}
         for url in urls:
-            combined.update(_build_route_stop_map(url))
+            print(f"Loading {mode} feed {url}", flush=True)
+            route_stop_map, route_metadata = _build_route_stop_map(url)
+            combined.update(route_stop_map)
+            combined_metadata.update(route_metadata)
         catalog[mode] = dict(sorted(combined.items()))
+        metadata[mode] = dict(sorted(combined_metadata.items()))
 
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_text(json.dumps(catalog, indent=2), encoding="utf-8")
+    METADATA_OUTPUT_PATH.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     print(f"Wrote transit catalog to {OUTPUT_PATH}")
+    print(f"Wrote transit metadata to {METADATA_OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

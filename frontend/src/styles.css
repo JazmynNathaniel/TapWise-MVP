@@ -683,6 +683,16 @@ p {
   border-left: 5px solid var(--mta-green);
 }
 
+.route-board-panel {
+  grid-column: span 8;
+  border-left: 5px solid var(--mta-blue);
+}
+
+.alerts-panel {
+  grid-column: span 4;
+  border-left: 5px solid var(--mta-red);
+}
+
 .payment-panel {
   grid-column: span 7;
   border-left: 5px solid var(--mta-orange);
@@ -860,6 +870,188 @@ p {
   gap: 0.85rem;
 }
 
+.compact-toggle {
+  width: min(260px, 100%);
+}
+
+.route-board-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.65fr);
+  gap: 1rem;
+}
+
+.route-picker {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.compact-form-grid {
+  grid-template-columns: minmax(120px, 0.42fr) minmax(180px, 0.58fr);
+}
+
+.arrival-board {
+  display: grid;
+  gap: 0.75rem;
+  min-height: 224px;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.arrival-board-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.arrival-board-heading strong {
+  font-size: 1.2rem;
+}
+
+.arrival-board-heading span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+.arrival-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.arrival-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 58px;
+  padding: 0.7rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+}
+
+.arrival-row div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.arrival-row strong {
+  color: var(--brand-strong);
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.arrival-row span,
+.arrival-row time {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.all-route-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  align-content: start;
+  gap: 0.45rem;
+  max-height: 354px;
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
+.route-selector {
+  display: grid;
+  gap: 0.1rem;
+  min-height: 74px;
+  padding: 0.55rem;
+  text-align: left;
+}
+
+.route-selector strong {
+  font-size: 1rem;
+}
+
+.route-selector span,
+.route-selector small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.route-selector.active span,
+.route-selector.active small {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.notification-list,
+.frequent-route-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.notification-list {
+  margin-bottom: 1rem;
+}
+
+.notification-card,
+.frequent-route-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.notification-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem;
+}
+
+.notification-card strong {
+  line-height: 1.18;
+}
+
+.notification-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.frequent-route-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.frequent-route-row div {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.frequent-route-row span,
+.frequent-route-row small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.notification-toggle {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.notification-toggle.active {
+  border-color: rgba(0, 147, 60, 0.42);
+  background: rgba(0, 147, 60, 0.18);
+  color: var(--ink);
+}
+
 .ghost-button {
   white-space: nowrap;
 }
@@ -989,6 +1181,8 @@ p {
 @media (max-width: 1100px) {
   .recommendation-panel,
   .progress-panel,
+  .route-board-panel,
+  .alerts-panel,
   .payment-panel,
   .ride-logging-panel {
     grid-column: span 12;
@@ -1037,6 +1231,15 @@ p {
 
   .status-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .route-board-grid,
+  .compact-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .all-route-list {
+    max-height: 260px;
   }
 
   .topbar {

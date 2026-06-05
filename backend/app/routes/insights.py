@@ -18,11 +18,11 @@ def fare_status(payment_method_id):
     try:
         method_id = int(payment_method_id)
     except ValueError:
-        return jsonify({"error": "Invalid payment method id."}), 400
+        return jsonify({"error": "Please choose a valid payment method."}), 400
 
     payment_method = PaymentMethod.query.filter_by(id=method_id, user_id=user_id).first()
     if not payment_method:
-        return jsonify({"error": "Payment method not found."}), 404
+        return jsonify({"error": "We could not find that payment method."}), 404
 
     status = calculate_fare_status(
         payment_method.rides,

@@ -4,6 +4,14 @@ backend/__pycache__/
 backend/app/__pycache__/
 backend/app/routes/__pycache__/
 backend/app/services/__pycache__/
+*.log
+*.log.*
+logs/
+**/logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 backend/*.log
 backend/*.db
 backend/instance/

@@ -32,10 +32,10 @@ def register():
 
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
-        return jsonify({"error": "Email already registered."}), 409
+        return jsonify({"error": "We could not create that account."}), 409
     existing_username = User.query.filter_by(username=username).first()
     if existing_username:
-        return jsonify({"error": "Username already taken."}), 409
+        return jsonify({"error": "We could not create that account."}), 409
 
     user = User(
         email=email,
@@ -57,7 +57,7 @@ def login():
 
     user = User.query.filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
-        return jsonify({"error": "Invalid credentials."}), 401
+        return jsonify({"error": "Incorrect login information."}), 401
 
     access_token = create_access_token(identity=str(user.id))
     return jsonify({"token": access_token, "user": _serialize_user(user)})

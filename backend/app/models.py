@@ -20,6 +20,11 @@ class User(db.Model):
     rides = db.relationship(
         "Ride", back_populates="user", cascade="all, delete-orphan"
     )
+    route_notification_preferences = db.relationship(
+        "RouteNotificationPreference",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 class PaymentMethod(db.Model):
@@ -65,3 +70,33 @@ class Ride(db.Model):
 
     user = db.relationship("User", back_populates="rides")
     payment_method = db.relationship("PaymentMethod", back_populates="rides")
+
+
+class RouteNotificationPreference(db.Model):
+    __tablename__ = "route_notification_preferences"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "user_id",
+            "transit_mode",
+            "transit_line",
+            "entry_stop",
+            name="uq_route_notification_preference",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    transit_mode = db.Column(db.String(20), nullable=False)
+    transit_line = db.Column(db.String(40), nullable=False)
+    entry_stop = db.Column(db.String(120), nullable=False, default="")
+    enabled = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(
+        db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = db.Column(
+        db.DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    user = db.relationship("User", back_populates="route_notification_preferences")

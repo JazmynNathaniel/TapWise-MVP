@@ -92,15 +92,15 @@ def create_ride():
     exit_stop = (payload.get("exit_stop") or "").strip()
 
     if not payment_method_id:
-        return jsonify({"error": "payment_method_id is required."}), 400
+        return jsonify({"error": "Please choose a payment method."}), 400
     if not is_valid_transit_selection(transit_mode, transit_line, entry_stop, exit_stop):
-        return jsonify({"error": "A valid line and stop selection is required."}), 400
+        return jsonify({"error": "Please choose a valid route and stops."}), 400
 
     payment_method = PaymentMethod.query.filter_by(
         id=payment_method_id, user_id=user_id
     ).first()
     if not payment_method:
-        return jsonify({"error": "Payment method not found."}), 404
+        return jsonify({"error": "We could not find that payment method."}), 404
 
     ride = Ride(
         user_id=user_id,

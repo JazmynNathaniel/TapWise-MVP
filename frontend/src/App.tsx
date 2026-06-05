@@ -1,10 +1,14 @@
 import { FormEvent, useEffect, useRef, useState, type CSSProperties } from "react";
 import { api } from "./api";
 import {
+  ArrivalResponse,
   FareStatus,
+  FrequentRoute,
   PaymentMethod,
+  PersonalizedAlerts,
   Recommendation,
   Ride,
+  RouteSummary,
   TransitOptions,
   User
 } from "./types";
@@ -58,6 +62,10 @@ type ActiveTransferNotice = {
   isSelectedMethod: boolean;
 };
 
+function getFrequentRouteKey(route: Pick<FrequentRoute, "transit_mode" | "line" | "entry_stop">) {
+  return [route.transit_mode, route.line, route.entry_stop].join(":");
+}
+
 function getTransferNoticeKey(notice: ActiveTransferNotice) {
   return [
     notice.paymentMethodId,
@@ -97,6 +105,27 @@ function formatShortDate(value: string | null) {
     hour: "numeric",
     minute: "2-digit"
   });
+}
+
+function formatArrivalTime(value: string) {
+  return new Date(value).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function formatMinutesUntil(minutes: number) {
+  if (minutes <= 0) {
+    return "Due";
+  }
+  if (minutes === 1) {
+    return "1 min";
+  }
+  return `${minutes} min`;
+}
+
+function formatModeLabel(value: string) {
+  return value === "bus" ? "Bus" : "Subway";
 }
 
 function getPaymentTypeLabel(value: string) {
@@ -406,6 +435,14 @@ function App() {
   const [paymentForm, setPaymentForm] = useState<PaymentFormState>(emptyPaymentForm);
   const [rideForm, setRideForm] = useState<RideFormState>(emptyRideForm);
   const [transitOptions, setTransitOptions] = useState<TransitOptions | null>(null);
+  const [routeSummaries, setRouteSummaries] = useState<RouteSummary[]>([]);
+  const [personalizedAlerts, setPersonalizedAlerts] = useState<PersonalizedAlerts | null>(null);
+  const [selectedRouteMode, setSelectedRouteMode] = useState<"subway" | "bus">("subway");
+  const [selectedRouteLine, setSelectedRouteLine] = useState("");
+  const [selectedRouteStop, setSelectedRouteStop] = useState("");
+  const [arrivalBoard, setArrivalBoard] = useState<ArrivalResponse | null>(null);
+  const [arrivalLoading, setArrivalLoading] = useState(false);
+  const [notificationUpdatingKey, setNotificationUpdatingKey] = useState("");
   const [rideTimingMode, setRideTimingMode] = useState<RideTimingMode>("now");
   const [manualRideDate, setManualRideDate] = useState(() => createManualRideDateTime().date);
   const [manualRideTime, setManualRideTime] = useState(() => createManualRideDateTime().time);
@@ -510,6 +547,71 @@ function App() {
   }, [transitOptions, rideForm.transitMode]);
 
   useEffect(() => {
+    if (!transitOptions) {
+      return;
+    }
+
+    const lines = Object.keys(transitOptions[selectedRouteMode]);
+    setSelectedRouteLine((current) => {
+      if (current && transitOptions[selectedRouteMode][current]) {
+        return current;
+      }
+      return lines[0] ?? "";
+    });
+  }, [selectedRouteMode, transitOptions]);
+
+  useEffect(() => {
+    if (!transitOptions || !selectedRouteLine) {
+      setSelectedRouteStop("");
+      return;
+    }
+
+    const stops = transitOptions[selectedRouteMode][selectedRouteLine] ?? [];
+    setSelectedRouteStop((current) => {
+      if (current && stops.includes(current)) {
+        return current;
+      }
+      return stops[0] ?? "";
+    });
+  }, [selectedRouteLine, selectedRouteMode, transitOptions]);
+
+  useEffect(() => {
+    if (!token || !selectedRouteLine || !selectedRouteStop) {
+      setArrivalBoard(null);
+      return;
+    }
+
+    let cancelled = false;
+    setArrivalLoading(true);
+    void api
+      .getArrivals(token, selectedRouteMode, selectedRouteLine, selectedRouteStop)
+      .then((payload) => {
+        if (!cancelled) {
+          setArrivalBoard(payload);
+        }
+      })
+      .catch((error: Error) => {
+        if (!cancelled) {
+          setArrivalBoard({
+            status: "unavailable",
+            message: error.message,
+            generated_at: new Date().toISOString(),
+            arrivals: []
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setArrivalLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRouteLine, selectedRouteMode, selectedRouteStop, token]);
+
+  useEffect(() => {
     if (!activeTransferNotice) {
       return;
     }
@@ -603,15 +705,25 @@ function App() {
     try {
       setLoading(true);
       setAppError("");
-      const [methods, rideItems, recommendationPayload] = await Promise.all([
+      const [
+        methods,
+        rideItems,
+        recommendationPayload,
+        routePayload,
+        personalizedPayload
+      ] = await Promise.all([
         api.getPaymentMethods(activeToken),
         api.getRides(activeToken),
-        api.getRecommendation(activeToken)
+        api.getRecommendation(activeToken),
+        api.getRoutes(activeToken),
+        api.getPersonalizedAlerts(activeToken)
       ]);
 
       setPaymentMethods(methods);
       setRides(rideItems);
       setRecommendation(recommendationPayload);
+      setRouteSummaries(routePayload.routes);
+      setPersonalizedAlerts(personalizedPayload);
 
       if (methods.length > 0) {
         const preferredId = recommendationPayload.best_payment_method_id ?? methods[0].id;
@@ -668,6 +780,9 @@ function App() {
     setFareStatus(null);
     setRecommendation(null);
     setTransitOptions(null);
+    setRouteSummaries([]);
+    setPersonalizedAlerts(null);
+    setArrivalBoard(null);
   }
 
   function updatePaymentForm<K extends keyof PaymentFormState>(
@@ -699,6 +814,37 @@ function App() {
       }
       return next;
     });
+  }
+
+  function selectRoute(route: RouteSummary) {
+    setSelectedRouteMode(route.transit_mode);
+    setSelectedRouteLine(route.line);
+    const stops = transitOptions?.[route.transit_mode][route.line] ?? [];
+    setSelectedRouteStop(stops[0] ?? "");
+  }
+
+  async function handleNotificationToggle(route: FrequentRoute) {
+    if (!token) {
+      return;
+    }
+
+    const routeKey = getFrequentRouteKey(route);
+    setNotificationUpdatingKey(routeKey);
+    try {
+      setAppError("");
+      await api.updateNotificationPreference(token, {
+        transit_mode: route.transit_mode,
+        transit_line: route.line,
+        entry_stop: route.entry_stop,
+        enabled: !route.notifications_enabled
+      });
+      const payload = await api.getPersonalizedAlerts(token);
+      setPersonalizedAlerts(payload);
+    } catch (error) {
+      setAppError((error as Error).message);
+    } finally {
+      setNotificationUpdatingKey("");
+    }
   }
 
   async function handleCreatePaymentMethod(event: FormEvent<HTMLFormElement>) {
@@ -898,6 +1044,14 @@ function App() {
     transitOptions && rideForm.transitLine
       ? transitOptions[rideForm.transitMode][rideForm.transitLine] ?? []
       : [];
+  const routeModeOptions = transitOptions ? transitOptions[selectedRouteMode] : {};
+  const routeLines = Object.keys(routeModeOptions);
+  const routeStops = selectedRouteLine ? routeModeOptions[selectedRouteLine] ?? [] : [];
+  const visibleRoutes = routeSummaries.filter(
+    (route) => route.transit_mode === selectedRouteMode
+  );
+  const frequentRoutes = personalizedAlerts?.routes ?? [];
+  const personalizedNotifications = personalizedAlerts?.notifications ?? [];
 
   const selectedMethod = paymentMethods.find((method) => method.id === selectedMethodId) ?? null;
   const ridesTaken = fareStatus?.rides_taken ?? 0;
@@ -1117,6 +1271,173 @@ function App() {
               ) : null}
             </div>
           ) : null}
+        </article>
+
+        <article className="panel route-board-panel">
+          <div className="panel-header-row">
+            <div>
+              <p className="panel-label">Route board</p>
+              <h2>All routes and arrivals</h2>
+            </div>
+            <div className="mode-toggle compact-toggle" role="group" aria-label="Route mode">
+              <button
+                type="button"
+                className={selectedRouteMode === "subway" ? "active" : ""}
+                onClick={() => setSelectedRouteMode("subway")}
+              >
+                Subway
+              </button>
+              <button
+                type="button"
+                className={selectedRouteMode === "bus" ? "active" : ""}
+                onClick={() => setSelectedRouteMode("bus")}
+              >
+                Bus
+              </button>
+            </div>
+          </div>
+
+          <div className="route-board-grid">
+            <div className="route-picker">
+              <div className="form-grid compact-form-grid">
+                <label>
+                  Route
+                  <select
+                    value={selectedRouteLine}
+                    onChange={(event) => setSelectedRouteLine(event.target.value)}
+                  >
+                    {routeLines.map((line) => (
+                      <option key={line} value={line}>
+                        {line}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Stop
+                  <select
+                    value={selectedRouteStop}
+                    onChange={(event) => setSelectedRouteStop(event.target.value)}
+                  >
+                    {routeStops.map((stop) => (
+                      <option key={stop} value={stop}>
+                        {stop}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="arrival-board" aria-live="polite">
+                <div className="arrival-board-heading">
+                  <strong>
+                    {formatModeLabel(selectedRouteMode)} {selectedRouteLine}
+                  </strong>
+                  <span>{selectedRouteStop || "Select a stop"}</span>
+                </div>
+                {arrivalLoading ? <p className="muted">Loading arrivals...</p> : null}
+                {!arrivalLoading && arrivalBoard ? (
+                  <>
+                    <div className="arrival-list">
+                      {arrivalBoard.arrivals.map((arrival) => (
+                        <div
+                          className="arrival-row"
+                          key={`${arrival.trip_id}:${arrival.stop_id}:${arrival.arrival_time}`}
+                        >
+                          <div>
+                            <strong>{formatMinutesUntil(arrival.minutes_until)}</strong>
+                            <span>{arrival.direction}</span>
+                          </div>
+                          <time dateTime={arrival.arrival_time}>
+                            {formatArrivalTime(arrival.arrival_time)}
+                          </time>
+                        </div>
+                      ))}
+                    </div>
+                    {arrivalBoard.arrivals.length === 0 ? (
+                      <p className="empty-state">{arrivalBoard.message}</p>
+                    ) : (
+                      <p className="muted helper-copy">{arrivalBoard.message}</p>
+                    )}
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="all-route-list" aria-label="All routes">
+              {visibleRoutes.map((route) => (
+                <button
+                  type="button"
+                  key={`${route.transit_mode}:${route.line}`}
+                  className={
+                    route.line === selectedRouteLine
+                      ? "selector route-selector active"
+                      : "selector route-selector"
+                  }
+                  onClick={() => selectRoute(route)}
+                >
+                  <strong>{route.line}</strong>
+                  <span>{route.stop_count} stops</span>
+                  {route.ride_count > 0 ? <small>{route.ride_count} logged</small> : null}
+                </button>
+              ))}
+            </div>
+          </div>
+        </article>
+
+        <article className="panel alerts-panel">
+          <div className="panel-header-row">
+            <div>
+              <p className="panel-label">Service alerts</p>
+              <h2>Frequent routes</h2>
+            </div>
+          </div>
+
+          <div className="notification-list">
+            {personalizedNotifications.map((notification) => (
+              <div className="notification-card" key={notification.id}>
+                <span className="route-chip">
+                  {notification.transit_mode.toUpperCase()} {notification.line}
+                </span>
+                <strong>{notification.title}</strong>
+                <p>{notification.message}</p>
+              </div>
+            ))}
+            {personalizedNotifications.length === 0 ? (
+              <p className="empty-state">
+                No active alerts for frequent routes. Alerts will appear after you log rides.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="frequent-route-list">
+            {frequentRoutes.map((route) => {
+              const routeKey = getFrequentRouteKey(route);
+              return (
+                <div className="frequent-route-row" key={routeKey}>
+                  <div>
+                    <strong>{route.line}</strong>
+                    <span>
+                      {route.entry_stop} to {route.exit_stop}
+                    </span>
+                    <small>{route.ride_count} logged rides</small>
+                  </div>
+                  <button
+                    type="button"
+                    className={
+                      route.notifications_enabled
+                        ? "secondary-button notification-toggle active"
+                        : "secondary-button notification-toggle"
+                    }
+                    onClick={() => void handleNotificationToggle(route)}
+                    disabled={notificationUpdatingKey === routeKey}
+                  >
+                    {route.notifications_enabled ? "Alerts on" : "Alerts off"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </article>
 
         <article className="panel ride-logging-panel">
