@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState, type CSSProperties } from "react";
 import { api } from "./api";
 import {
+  Arrival,
   ArrivalResponse,
   FareStatus,
   FrequentRoute,
@@ -129,6 +130,62 @@ function formatMinutesUntil(minutes: number) {
 
 function formatModeLabel(value: string) {
   return value === "bus" ? "Bus" : "Subway";
+}
+
+function getArrivalDirectionBucket(arrival: Arrival): "first" | "last" {
+  const normalizedDirection = arrival.direction.toLowerCase();
+
+  if (
+    normalizedDirection.includes("north") ||
+    normalizedDirection.includes("west")
+  ) {
+    return "first";
+  }
+
+  if (
+    normalizedDirection.includes("south") ||
+    normalizedDirection.includes("east")
+  ) {
+    return "last";
+  }
+
+  if (arrival.direction_id === 1) {
+    return "last";
+  }
+
+  return "first";
+}
+
+function getDirectionCards(
+  arrivals: Arrival[],
+  firstStop: string,
+  lastStop: string
+) {
+  const firstStopLabel = firstStop || "the first stop";
+  const lastStopLabel = lastStop || "the last stop";
+
+  return [
+    {
+      id: "first",
+      className: "direction-card direction-card-first",
+      title: `Toward ${firstStopLabel}`,
+      detail: "First stop on this line",
+      terminal: firstStopLabel,
+      arrivals: arrivals.filter(
+        (arrival) => getArrivalDirectionBucket(arrival) === "first"
+      )
+    },
+    {
+      id: "last",
+      className: "direction-card direction-card-last",
+      title: `Toward ${lastStopLabel}`,
+      detail: "Last stop on this line",
+      terminal: lastStopLabel,
+      arrivals: arrivals.filter(
+        (arrival) => getArrivalDirectionBucket(arrival) === "last"
+      )
+    }
+  ];
 }
 
 function getPaymentTypeLabel(value: string) {
@@ -1109,6 +1166,13 @@ function App() {
   const routeModeOptions = transitOptions ? transitOptions[selectedRouteMode] : {};
   const routeLines = Object.keys(routeModeOptions);
   const routeStops = selectedRouteLine ? routeModeOptions[selectedRouteLine] ?? [] : [];
+  const firstRouteStop = routeStops[0] ?? "";
+  const lastRouteStop = routeStops[routeStops.length - 1] ?? "";
+  const directionCards = getDirectionCards(
+    arrivalBoard?.arrivals ?? [],
+    firstRouteStop,
+    lastRouteStop
+  );
   const visibleRoutes = routeSummaries.filter(
     (route) => route.transit_mode === selectedRouteMode
   );
@@ -1456,27 +1520,44 @@ function App() {
                 {arrivalLoading ? <p className="muted">Checking live arrivals...</p> : null}
                 {!arrivalLoading && arrivalBoard ? (
                   <>
-                    <div className="arrival-list">
-                      {arrivalBoard.arrivals.map((arrival) => (
-                        <div
-                          className="arrival-row"
-                          key={`${arrival.trip_id}:${arrival.stop_id}:${arrival.arrival_time}`}
-                        >
-                          <div>
-                            <strong>{formatMinutesUntil(arrival.minutes_until)}</strong>
-                            <span>{arrival.direction}</span>
-                          </div>
-                          <time dateTime={arrival.arrival_time}>
-                            {formatArrivalTime(arrival.arrival_time)}
-                          </time>
-                        </div>
-                      ))}
-                    </div>
-                    {arrivalBoard.arrivals.length === 0 ? (
-                      <p className="empty-state">{arrivalBoard.message}</p>
+                    {arrivalBoard.arrivals.length > 0 ? (
+                      <div className="direction-card-grid">
+                        {directionCards.map((card) => (
+                          <section className={card.className} key={card.id}>
+                            <div className="direction-card-heading">
+                              <span>{card.detail}</span>
+                              <strong>{card.title}</strong>
+                            </div>
+                            <div className="arrival-list">
+                              {card.arrivals.slice(0, 4).map((arrival) => (
+                                <div
+                                  className="arrival-row"
+                                  key={`${arrival.trip_id}:${arrival.stop_id}:${arrival.arrival_time}`}
+                                >
+                                  <div>
+                                    <strong>{formatMinutesUntil(arrival.minutes_until)}</strong>
+                                    <span>Arrival / departure</span>
+                                  </div>
+                                  <time dateTime={arrival.arrival_time}>
+                                    {formatArrivalTime(arrival.arrival_time)}
+                                  </time>
+                                </div>
+                              ))}
+                              {card.arrivals.length === 0 ? (
+                                <p className="empty-state">
+                                  No upcoming trips toward {card.terminal} right now.
+                                </p>
+                              ) : null}
+                            </div>
+                          </section>
+                        ))}
+                      </div>
                     ) : (
-                      <p className="muted helper-copy">{arrivalBoard.message}</p>
+                      <p className="empty-state">{arrivalBoard.message}</p>
                     )}
+                    {arrivalBoard.arrivals.length > 0 ? (
+                      <p className="muted helper-copy">{arrivalBoard.message}</p>
+                    ) : null}
                   </>
                 ) : null}
               </div>

@@ -142,7 +142,8 @@ export const api = {
     const query = new URLSearchParams({
       mode,
       line,
-      stop
+      stop,
+      limit: "12"
     });
     return request<ArrivalResponse>(`/arrivals?${query.toString()}`, {}, token);
   },

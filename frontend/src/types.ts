@@ -56,6 +56,7 @@ export type Arrival = {
   stop_id: string;
   trip_id: string;
   direction: string;
+  direction_id: number | null;
   arrival_time: string;
   minutes_until: number;
 };

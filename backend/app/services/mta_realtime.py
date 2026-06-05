@@ -159,11 +159,22 @@ def _arrival_timestamp(stop_time_update) -> int | None:
     return None
 
 
-def _direction_label(stop_id: str) -> str:
+def _trip_direction_id(trip) -> int | None:
+    try:
+        if trip.HasField("direction_id"):
+            return int(trip.direction_id)
+    except ValueError:
+        return None
+    return None
+
+
+def _direction_label(stop_id: str, direction_id: int | None) -> str:
     if stop_id.endswith("N"):
         return "Northbound"
     if stop_id.endswith("S"):
         return "Southbound"
+    if direction_id is not None:
+        return f"Direction {direction_id}"
     return "Inbound"
 
 
@@ -175,6 +186,7 @@ def _build_arrival(
     stop_id: str,
     route_id: str,
     trip_id: str,
+    direction_id: int | None,
     timestamp: int,
     now: datetime,
 ) -> dict:
@@ -187,7 +199,8 @@ def _build_arrival(
         "stop": stop_name,
         "stop_id": stop_id,
         "trip_id": trip_id,
-        "direction": _direction_label(stop_id),
+        "direction": _direction_label(stop_id, direction_id),
+        "direction_id": direction_id,
         "arrival_time": arrival_time.isoformat(),
         "minutes_until": max(0, math.ceil(seconds_until / 60)),
     }
@@ -212,6 +225,7 @@ def _arrivals_from_feed(
 
         trip = entity.trip_update.trip
         route_id = trip.route_id
+        direction_id = _trip_direction_id(trip)
         if not _route_id_matches(route_id, line, route_ids):
             continue
 
@@ -232,6 +246,7 @@ def _arrivals_from_feed(
                     stop_id=stop_id,
                     route_id=route_id,
                     trip_id=trip.trip_id,
+                    direction_id=direction_id,
                     timestamp=timestamp,
                     now=now,
                 )

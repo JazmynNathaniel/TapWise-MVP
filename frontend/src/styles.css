@@ -996,6 +996,60 @@ p {
   gap: 0.55rem;
 }
 
+.direction-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.direction-card {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+}
+
+.direction-card-first {
+  border-color: rgba(46, 143, 255, 0.46);
+  background:
+    linear-gradient(180deg, rgba(46, 143, 255, 0.16), transparent 52%),
+    var(--surface-strong);
+}
+
+.direction-card-last {
+  border-color: rgba(255, 99, 25, 0.48);
+  background:
+    linear-gradient(180deg, rgba(255, 99, 25, 0.15), transparent 52%),
+    var(--surface-strong);
+}
+
+.direction-card-heading {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.direction-card-heading span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.direction-card-heading strong {
+  color: var(--ink);
+  font-size: 1.05rem;
+  line-height: 1.18;
+}
+
+.direction-card .empty-state {
+  padding: 0.85rem;
+}
+
 .selected-alert-list {
   display: grid;
   gap: 0.65rem;
@@ -1439,6 +1493,10 @@ p {
   .dashboard-tabs button {
     min-height: 58px;
     padding: 0.62rem 0.7rem;
+  }
+
+  .direction-card-grid {
+    grid-template-columns: 1fr;
   }
 
   .user-pill {
