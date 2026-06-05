@@ -632,7 +632,7 @@ function App() {
   const [paymentForm, setPaymentForm] = useState<PaymentFormState>(emptyPaymentForm);
   const [rideForm, setRideForm] = useState<RideFormState>(emptyRideForm);
   const [transitOptions, setTransitOptions] = useState<TransitOptions | null>(null);
-  const [routeSummaries, setRouteSummaries] = useState<RouteSummary[]>([]);
+  const [, setRouteSummaries] = useState<RouteSummary[]>([]);
   const [personalizedAlerts, setPersonalizedAlerts] = useState<PersonalizedAlerts | null>(null);
   const [selectedRouteMode, setSelectedRouteMode] = useState<"subway" | "bus">("subway");
   const [selectedRouteLine, setSelectedRouteLine] = useState("");
@@ -1174,10 +1174,14 @@ function App() {
     });
   }
 
-  function selectRoute(route: RouteSummary) {
-    setSelectedRouteMode(route.transit_mode);
-    setSelectedRouteLine(route.line);
-    const stops = transitOptions?.[route.transit_mode][route.line] ?? [];
+  function selectTravelRoute(mode: "subway" | "bus", line: string) {
+    if (!line) {
+      return;
+    }
+
+    setSelectedRouteMode(mode);
+    setSelectedRouteLine(line);
+    const stops = transitOptions?.[mode][line] ?? [];
     setSelectedRouteStop(stops[0] ?? "");
   }
 
@@ -1455,8 +1459,11 @@ function App() {
     transitOptions && rideForm.transitLine
       ? transitOptions[rideForm.transitMode][rideForm.transitLine] ?? []
       : [];
+  const subwayRouteOptions = transitOptions?.subway ?? {};
+  const busRouteOptions = transitOptions?.bus ?? {};
+  const subwayRouteLines = Object.keys(subwayRouteOptions);
+  const busRouteLines = Object.keys(busRouteOptions);
   const routeModeOptions = transitOptions ? transitOptions[selectedRouteMode] : {};
-  const routeLines = Object.keys(routeModeOptions);
   const routeStops = selectedRouteLine ? routeModeOptions[selectedRouteLine] ?? [] : [];
   const firstRouteStop = routeStops[0] ?? "";
   const lastRouteStop = routeStops[routeStops.length - 1] ?? "";
@@ -1464,9 +1471,6 @@ function App() {
     arrivalBoard?.arrivals ?? [],
     firstRouteStop,
     lastRouteStop
-  );
-  const visibleRoutes = routeSummaries.filter(
-    (route) => route.transit_mode === selectedRouteMode
   );
   const frequentRoutes = personalizedAlerts?.routes ?? [];
   const personalizedNotifications = personalizedAlerts?.notifications ?? [];
@@ -1787,34 +1791,24 @@ function App() {
               <p className="panel-label">Route board</p>
               <h2>All routes and arrivals</h2>
             </div>
-            <div className="mode-toggle compact-toggle" role="group" aria-label="Route mode">
-              <button
-                type="button"
-                className={selectedRouteMode === "subway" ? "active" : ""}
-                onClick={() => setSelectedRouteMode("subway")}
-              >
-                Subway
-              </button>
-              <button
-                type="button"
-                className={selectedRouteMode === "bus" ? "active" : ""}
-                onClick={() => setSelectedRouteMode("bus")}
-              >
-                Bus
-              </button>
-            </div>
+            <span className="selected-method-pill">
+              {selectedRouteLine
+                ? `${formatModeLabel(selectedRouteMode)} ${selectedRouteLine}`
+                : "Choose a route"}
+            </span>
           </div>
 
           <div className="route-board-grid">
             <div className="route-picker">
-              <div className="form-grid compact-form-grid">
+              <div className="route-dropdown-grid">
                 <label>
-                  Route
+                  Subway line
                   <select
-                    value={selectedRouteLine}
-                    onChange={(event) => setSelectedRouteLine(event.target.value)}
+                    value={selectedRouteMode === "subway" ? selectedRouteLine : ""}
+                    onChange={(event) => selectTravelRoute("subway", event.target.value)}
                   >
-                    {routeLines.map((line) => (
+                    <option value="">Select subway</option>
+                    {subwayRouteLines.map((line) => (
                       <option key={line} value={line}>
                         {line}
                       </option>
@@ -1822,7 +1816,21 @@ function App() {
                   </select>
                 </label>
                 <label>
-                  Stop
+                  Bus line
+                  <select
+                    value={selectedRouteMode === "bus" ? selectedRouteLine : ""}
+                    onChange={(event) => selectTravelRoute("bus", event.target.value)}
+                  >
+                    <option value="">Select bus</option>
+                    {busRouteLines.map((line) => (
+                      <option key={line} value={line}>
+                        {line}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="route-stop-select">
+                  Stop for selected route
                   <select
                     value={selectedRouteStop}
                     onChange={(event) => setSelectedRouteStop(event.target.value)}
@@ -1834,6 +1842,41 @@ function App() {
                     ))}
                   </select>
                 </label>
+              </div>
+
+              <div className="selected-alert-board" aria-live="polite">
+                <div className="arrival-board-heading">
+                  <strong>Delays and service changes</strong>
+                  <span>{selectedRouteLine || "Select a route"}</span>
+                </div>
+                {!settings.serviceAlertsEnabled ? (
+                  <p className="empty-state">
+                    Service updates are paused. You can turn them back on in Settings.
+                  </p>
+                ) : selectedRouteAlertsLoading ? (
+                  <p className="muted">Checking for service updates...</p>
+                ) : null}
+                {settings.serviceAlertsEnabled && !selectedRouteAlertsLoading && selectedRouteAlerts ? (
+                  selectedRouteAlerts.alerts.length > 0 ? (
+                    <div className="selected-alert-list">
+                      {selectedRouteAlerts.alerts.map((alert) => (
+                        <div className="selected-alert-card" key={alert.id}>
+                          <span className="route-chip">
+                            {alert.transit_mode.toUpperCase()} {alert.line ?? selectedRouteLine}
+                          </span>
+                          <strong>{alert.title}</strong>
+                          <p>{alert.description || alert.effect || "Service change reported."}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="empty-state">
+                      {selectedRouteAlerts.status === "ok"
+                        ? "No alerts or service changes to report. You're all set. Safe travels!"
+                        : selectedRouteAlerts.message}
+                    </p>
+                  )
+                ) : null}
               </div>
 
               <div className="arrival-board" aria-live="polite">
@@ -1887,60 +1930,6 @@ function App() {
                   </>
                 ) : null}
               </div>
-
-              <div className="selected-alert-board" aria-live="polite">
-                <div className="arrival-board-heading">
-                  <strong>Delays and service changes</strong>
-                  <span>{selectedRouteLine || "Select a route"}</span>
-                </div>
-                {!settings.serviceAlertsEnabled ? (
-                  <p className="empty-state">
-                    Service updates are paused. You can turn them back on in Settings.
-                  </p>
-                ) : selectedRouteAlertsLoading ? (
-                  <p className="muted">Checking for service updates...</p>
-                ) : null}
-                {settings.serviceAlertsEnabled && !selectedRouteAlertsLoading && selectedRouteAlerts ? (
-                  selectedRouteAlerts.alerts.length > 0 ? (
-                    <div className="selected-alert-list">
-                      {selectedRouteAlerts.alerts.map((alert) => (
-                        <div className="selected-alert-card" key={alert.id}>
-                          <span className="route-chip">
-                            {alert.transit_mode.toUpperCase()} {alert.line ?? selectedRouteLine}
-                          </span>
-                          <strong>{alert.title}</strong>
-                          <p>{alert.description || alert.effect || "Service change reported."}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="empty-state">
-                      {selectedRouteAlerts.status === "ok"
-                        ? "No alerts or service changes to report. You're all set. Safe travels!"
-                        : selectedRouteAlerts.message}
-                    </p>
-                  )
-                ) : null}
-              </div>
-            </div>
-
-            <div className="all-route-list" aria-label="All routes">
-              {visibleRoutes.map((route) => (
-                <button
-                  type="button"
-                  key={`${route.transit_mode}:${route.line}`}
-                  className={
-                    route.line === selectedRouteLine
-                      ? "selector route-selector active"
-                      : "selector route-selector"
-                  }
-                  onClick={() => selectRoute(route)}
-                >
-                  <strong>{route.line}</strong>
-                  <span>{route.stop_count} stops</span>
-                  {route.ride_count > 0 ? <small>{route.ride_count} logged</small> : null}
-                </button>
-              ))}
             </div>
           </div>
         </article>

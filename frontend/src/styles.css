@@ -1059,7 +1059,7 @@ p {
 
 .route-board-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.65fr);
+  grid-template-columns: 1fr;
   gap: 1rem;
 }
 
@@ -1071,6 +1071,16 @@ p {
 
 .compact-form-grid {
   grid-template-columns: minmax(120px, 0.42fr) minmax(180px, 0.58fr);
+}
+
+.route-dropdown-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.route-stop-select {
+  grid-column: span 2;
 }
 
 .arrival-board {
@@ -1225,40 +1235,6 @@ p {
   color: var(--muted);
   font-size: 0.84rem;
   font-weight: 800;
-}
-
-.all-route-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
-  align-content: start;
-  gap: 0.45rem;
-  max-height: 354px;
-  overflow: auto;
-  padding-right: 0.15rem;
-}
-
-.route-selector {
-  display: grid;
-  gap: 0.1rem;
-  min-height: 74px;
-  padding: 0.55rem;
-  text-align: left;
-}
-
-.route-selector strong {
-  font-size: 1rem;
-}
-
-.route-selector span,
-.route-selector small {
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 800;
-}
-
-.route-selector.active span,
-.route-selector.active small {
-  color: rgba(255, 255, 255, 0.78);
 }
 
 .notification-list,
@@ -1593,12 +1569,13 @@ p {
   }
 
   .route-board-grid,
-  .compact-form-grid {
+  .compact-form-grid,
+  .route-dropdown-grid {
     grid-template-columns: 1fr;
   }
 
-  .all-route-list {
-    max-height: 260px;
+  .route-stop-select {
+    grid-column: auto;
   }
 
   .topbar {
