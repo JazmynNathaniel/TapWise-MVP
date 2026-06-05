@@ -44,7 +44,6 @@ export type RouteSummary = {
   transit_mode: "subway" | "bus";
   line: string;
   stop_count: number;
-  sample_stops: string[];
   ride_count: number;
   is_frequent: boolean;
 };

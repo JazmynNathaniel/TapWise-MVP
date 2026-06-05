@@ -214,13 +214,15 @@ def create_app() -> Flask:
     def health_check():
         return jsonify({"status": "ok"})
 
+    @app.get("/")
+    def root_health_check():
+        return jsonify({"service": "tapwise-api", "status": "ok"})
+
     @app.errorhandler(Exception)
     def handle_api_exception(error):
-        if not request.path.startswith("/api/"):
-            raise error
-
         if isinstance(error, HTTPException):
-            return _safe_api_error(error.code or 500)
+            status_code = error.code or 500
+            return _safe_api_error(status_code)
 
         db.session.rollback()
         return _safe_api_error(500)

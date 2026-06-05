@@ -48,11 +48,6 @@ def get_transit_metadata() -> dict:
     return metadata or FALLBACK_METADATA
 
 
-def refresh_transit_options_cache() -> None:
-    get_transit_options.cache_clear()
-    get_transit_metadata.cache_clear()
-
-
 def is_valid_transit_selection(mode: str, line: str, entry_stop: str, exit_stop: str) -> bool:
     mode_options = get_transit_options().get(mode)
     if not mode_options:
@@ -73,7 +68,6 @@ def list_route_summaries() -> list[dict]:
                     "transit_mode": mode,
                     "line": line,
                     "stop_count": len(stops),
-                    "sample_stops": stops[:3],
                 }
             )
     return summaries

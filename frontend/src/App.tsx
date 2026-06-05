@@ -18,6 +18,7 @@ const USER_KEY = "tapwise_user";
 const HAS_AUTHENTICATED_BEFORE_KEY = "tapwise_has_authenticated_before";
 const THEME_KEY = "tapwise_theme";
 const SILENCED_TRANSFER_NOTIFICATIONS_KEY = "tapwise_silenced_transfer_notifications";
+const SESSION_ENDED_MESSAGE = "Your session has ended. Please sign in again.";
 const FARE_CAP_RIDES = 12;
 const TRANSFER_WINDOW_SECONDS = 2 * 60 * 60;
 const TRANSFER_REMINDER_SECONDS = 30 * 60;
@@ -737,7 +738,13 @@ function App() {
         setSelectedMethodId(null);
       }
     } catch (error) {
-      setAppError((error as Error).message);
+      const message = (error as Error).message;
+      if (message === SESSION_ENDED_MESSAGE) {
+        handleLogout();
+        setAuthError(message);
+        return;
+      }
+      setAppError(message);
     } finally {
       setLoading(false);
     }
