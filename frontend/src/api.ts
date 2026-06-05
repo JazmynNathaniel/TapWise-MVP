@@ -22,6 +22,9 @@ const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE_URL);
 const GENERIC_ERROR_MESSAGE = "Something went wrong on our side. Please try again in a moment.";
 const NETWORK_ERROR_MESSAGE =
   "TapWise is having trouble connecting. Please check your connection and try again.";
+const SLOW_RESPONSE_MESSAGE =
+  "TapWise is taking longer than expected. Please try again in a moment.";
+const REQUEST_TIMEOUT_MS = 10000;
 
 type PaymentMethodPayload = {
   label: string;
@@ -81,18 +84,26 @@ function friendlyErrorMessage(path: string, status: number) {
 
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
   let response: Response;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
     response = await fetch(`${API_BASE}${path}`, {
       ...options,
+      signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(options.headers ?? {})
       }
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(SLOW_RESPONSE_MESSAGE);
+    }
     throw new Error(NETWORK_ERROR_MESSAGE);
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 
   if (!response.ok) {
@@ -114,6 +125,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ email, password })
     });
+  },
+  logout(token: string) {
+    return request<{ message: string }>("/auth/logout", { method: "POST" }, token);
   },
   deleteProfile(token: string) {
     return request<{ message: string }>("/auth/profile", { method: "DELETE" }, token);

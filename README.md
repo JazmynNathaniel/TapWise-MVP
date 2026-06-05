@@ -9,7 +9,7 @@ TapWise is an MVP web app for NYC transit riders. It helps users track OMNY-styl
 - Best-next-tap recommendations based on fare-cap progress and active transfers
 - Free bus-to-train and train-to-bus transfer tracking
 - Manual and current-time ride logging
-- Separate dashboard tabs for fare tracking and travel
+- Separate dashboard tabs for fares, travel, payments, rides, and settings
 - Route board for subway and bus lines
 - Live arrivals grouped into adjacent terminal-direction cards
 - Service alerts and delay/service-change display for the selected route
@@ -44,6 +44,7 @@ frontend/
 - `JWT_SECRET_KEY`
 - `DATABASE_URL`
 - `CLIENT_ORIGIN`
+- `APP_ENV=production` for deployed backend services
 - `MTA_API_KEY` optional for MTA feeds that require a key
 - `MTA_BUS_TIME_API_KEY` required for live bus arrivals and bus service alerts
 
@@ -71,6 +72,10 @@ python run.py
 ```
 
 The API creates tables automatically on startup.
+
+Production schema changes also live in `backend/migrations/`. Apply the numbered SQL files
+against PostgreSQL when you want an explicit migration step instead of relying on startup table
+creation.
 
 ## Frontend Setup
 
@@ -113,11 +118,15 @@ custom `vercel.json` rewrite is not required right now.
   - `JWT_SECRET_KEY`
   - `DATABASE_URL`
   - `CLIENT_ORIGIN=https://<your-vercel-domain>`
+  - `APP_ENV=production`
   - `MTA_BUS_TIME_API_KEY`
   - `MTA_API_KEY` if needed for your MTA account/feed access
 
 `CLIENT_ORIGIN` also accepts a comma-separated list if you need to allow both your production
 Vercel domain and a preview or staging frontend.
+
+When `APP_ENV=production`, the backend refuses to start with development fallback secrets.
+Set both `SECRET_KEY` and `JWT_SECRET_KEY` to generated values in Render.
 
 This repo also includes [render.yaml](render.yaml) as a Render Blueprint starter for provisioning the backend service and a PostgreSQL database together.
 
@@ -137,6 +146,8 @@ If your editor still shows missing Flask package imports, re-select the interpre
 
 - `POST /api/auth/register`
 - `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `DELETE /api/auth/profile`
 - `GET /api/payment-methods`
 - `POST /api/payment-methods`
 - `GET /api/rides`
@@ -148,7 +159,7 @@ If your editor still shows missing Flask package imports, re-select the interpre
 - `GET /api/arrivals`
 - `GET /api/service-alerts`
 - `GET /api/personalized-alerts`
-- `PUT /api/notification-preferences`
+- `POST /api/notification-preferences`
 
 Compatibility aliases were added for the typo variants from the spec (`payment_mthods`, `recomendation`).
 
@@ -168,3 +179,12 @@ Compatibility aliases were added for the typo variants from the spec (`payment_m
 - Arrival results are grouped by route terminal so users can see the exact direction instead of relying on vague northbound or southbound labels.
 - Selected-route service alerts load automatically when the user chooses a train or bus line.
 - Frequent-route notifications are based on the user's logged ride history and notification preferences.
+
+## Security Notes
+
+- Production deployments require real Flask and JWT secrets.
+- CORS is restricted to `CLIENT_ORIGIN`; use a comma-separated list for multiple allowed frontend origins.
+- Login, registration, selected write actions, and realtime transit calls are rate limited.
+- Frontend actions use one in-flight request at a time, timeout slow responses, and briefly pause retry buttons after failed requests.
+- Logout and profile deletion revoke the active JWT until it expires.
+- Registration passwords require at least 8 characters, one capital letter, one number, one special character from `!@#$%^&*_-`, and no spaces.

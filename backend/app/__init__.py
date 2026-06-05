@@ -1,5 +1,5 @@
-import os
 import re
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
@@ -8,12 +8,13 @@ from werkzeug.exceptions import HTTPException
 
 from .config import Config
 from .extensions import cors, db, jwt
-from .models import User
+from .models import TokenBlocklist, User
 from .routes.auth import auth_bp
 from .routes.insights import insights_bp
 from .routes.payment_methods import payment_methods_bp
 from .routes.rides import rides_bp
 from .routes.transit import transit_bp
+from .security import is_rate_limited
 
 
 API_ERROR_MESSAGES = {
@@ -170,6 +171,13 @@ def _ensure_ride_columns() -> None:
         db.session.commit()
 
 
+def _cleanup_expired_token_blocklist() -> None:
+    TokenBlocklist.query.filter(
+        TokenBlocklist.expires_at <= datetime.now(timezone.utc)
+    ).delete()
+    db.session.commit()
+
+
 def create_app() -> Flask:
     load_dotenv()
 
@@ -179,7 +187,35 @@ def create_app() -> Flask:
 
     db.init_app(app)
     jwt.init_app(app)
-    cors.init_app(app)
+    cors.init_app(
+        app,
+        resources={r"/api/*": {"origins": sorted(allowed_origins)}},
+        allow_headers=["Content-Type", "Authorization"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        max_age=600,
+    )
+
+    @app.before_request
+    def enforce_rate_limits():
+        if is_rate_limited(request):
+            return _safe_api_error(429)
+        return None
+
+    @jwt.token_in_blocklist_loader
+    def handle_blocklisted_token(_jwt_header, jwt_payload):
+        jti = jwt_payload.get("jti")
+        if not jti:
+            return True
+        return TokenBlocklist.query.filter_by(jti=jti).first() is not None
+
+    @jwt.token_verification_loader
+    def verify_token_user_exists(_jwt_header, jwt_payload):
+        identity = jwt_payload.get("sub")
+        try:
+            user_id = int(identity)
+        except (TypeError, ValueError):
+            return False
+        return db.session.get(User, user_id) is not None
 
     @jwt.unauthorized_loader
     def handle_missing_token(_reason):
@@ -228,23 +264,11 @@ def create_app() -> Flask:
         db.session.rollback()
         return _safe_api_error(500)
 
-    @app.after_request
-    def apply_cors_headers(response):
-        if request.path.startswith("/api/"):
-            origin = (request.headers.get("Origin") or "").rstrip("/")
-            if origin in allowed_origins:
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Vary"] = "Origin"
-                response.headers["Access-Control-Allow-Headers"] = (
-                    "Content-Type, Authorization"
-                )
-                response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-        return response
-
     with app.app_context():
         db.create_all()
         _ensure_user_columns()
         _ensure_payment_method_columns()
         _ensure_ride_columns()
+        _cleanup_expired_token_blocklist()
 
     return app

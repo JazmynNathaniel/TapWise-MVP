@@ -29,7 +29,8 @@ const SETTINGS_KEY = "tapwise_settings";
 const SILENCED_TRANSFER_NOTIFICATIONS_KEY = "tapwise_silenced_transfer_notifications";
 const SESSION_ENDED_MESSAGE = "Your session has ended. Please sign in again.";
 const PASSWORD_RULE_MESSAGE =
-  "Password must include one capital letter, one number, one special character (!@#$%^&*_-), and no spaces.";
+  "Password must be at least 8 characters and include one capital letter, one number, one special character (!@#$%^&*_-), and no spaces.";
+const ACTION_RETRY_DELAY_MS = 3500;
 const FARE_CAP_RIDES = 12;
 const TRANSFER_WINDOW_SECONDS = 2 * 60 * 60;
 const TRANSFER_REMINDER_SECONDS = 30 * 60;
@@ -589,6 +590,7 @@ function validateRideForm(form: RideFormState) {
 
 function validatePassword(value: string) {
   if (
+    value.length < 8 ||
     /\s/.test(value) ||
     !/[A-Z]/.test(value) ||
     !/[0-9]/.test(value) ||
@@ -647,7 +649,17 @@ function App() {
   const [authError, setAuthError] = useState("");
   const [authNotice, setAuthNotice] = useState("");
   const [appError, setAppError] = useState("");
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [authRetryLocked, setAuthRetryLocked] = useState(false);
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [paymentRetryLocked, setPaymentRetryLocked] = useState(false);
+  const [rideSubmitting, setRideSubmitting] = useState(false);
+  const [rideRetryLocked, setRideRetryLocked] = useState(false);
   const [profileDeleting, setProfileDeleting] = useState(false);
+  const [profileRetryLocked, setProfileRetryLocked] = useState(false);
+  const [notificationRetryKeys, setNotificationRetryKeys] = useState<Set<string>>(
+    () => new Set()
+  );
   const [loading, setLoading] = useState(false);
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
   const [transferReminder, setTransferReminder] = useState("");
@@ -1004,6 +1016,10 @@ function App() {
 
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (authSubmitting || authRetryLocked) {
+      return;
+    }
+
     if (mode === "register") {
       const passwordError = validatePassword(password);
       if (passwordError) {
@@ -1013,6 +1029,7 @@ function App() {
       }
     }
 
+    setAuthSubmitting(true);
     try {
       setAuthError("");
       setAuthNotice("");
@@ -1035,10 +1052,22 @@ function App() {
       setTransitOptions(options);
     } catch (error) {
       setAuthError((error as Error).message);
+      lockActionTemporarily(setAuthRetryLocked);
+    } finally {
+      setAuthSubmitting(false);
     }
   }
 
-  function handleLogout() {
+  async function handleLogout(revokeToken = false) {
+    const activeToken = token;
+    if (revokeToken && activeToken) {
+      try {
+        await api.logout(activeToken);
+      } catch {
+        // Still clear local session state if the logout request cannot complete.
+      }
+    }
+
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     setToken(null);
@@ -1058,6 +1087,22 @@ function App() {
     setSettings((current) => ({ ...current, [key]: value }));
   }
 
+  function lockActionTemporarily(setLocked: (locked: boolean) => void) {
+    setLocked(true);
+    window.setTimeout(() => setLocked(false), ACTION_RETRY_DELAY_MS);
+  }
+
+  function lockNotificationTemporarily(routeKey: string) {
+    setNotificationRetryKeys((current) => new Set(current).add(routeKey));
+    window.setTimeout(() => {
+      setNotificationRetryKeys((current) => {
+        const next = new Set(current);
+        next.delete(routeKey);
+        return next;
+      });
+    }, ACTION_RETRY_DELAY_MS);
+  }
+
   function handleSoundOptionChange(value: SoundOption) {
     updateSettings("soundOption", value);
     playNotificationPreview(value, settings.notificationVolume);
@@ -1072,7 +1117,7 @@ function App() {
   }
 
   async function handleDeleteProfile() {
-    if (!token || profileDeleting) {
+    if (!token || profileDeleting || profileRetryLocked) {
       return;
     }
 
@@ -1092,6 +1137,7 @@ function App() {
       setAuthNotice("Your TapWise profile has been deleted.");
     } catch (error) {
       setAppError((error as Error).message);
+      lockActionTemporarily(setProfileRetryLocked);
     } finally {
       setProfileDeleting(false);
     }
@@ -1141,6 +1187,10 @@ function App() {
     }
 
     const routeKey = getFrequentRouteKey(route);
+    if (notificationUpdatingKey === routeKey || notificationRetryKeys.has(routeKey)) {
+      return;
+    }
+
     setNotificationUpdatingKey(routeKey);
     try {
       setAppError("");
@@ -1154,6 +1204,7 @@ function App() {
       setPersonalizedAlerts(payload);
     } catch (error) {
       setAppError((error as Error).message);
+      lockNotificationTemporarily(routeKey);
     } finally {
       setNotificationUpdatingKey("");
     }
@@ -1161,7 +1212,7 @@ function App() {
 
   async function handleCreatePaymentMethod(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!token) {
+    if (!token || paymentSubmitting || paymentRetryLocked) {
       return;
     }
 
@@ -1171,6 +1222,7 @@ function App() {
       return;
     }
 
+    setPaymentSubmitting(true);
     try {
       setAppError("");
       const fingerprintSource = [
@@ -1194,11 +1246,14 @@ function App() {
       await loadDashboard(token);
     } catch (error) {
       setAppError((error as Error).message);
+      lockActionTemporarily(setPaymentRetryLocked);
+    } finally {
+      setPaymentSubmitting(false);
     }
   }
 
   async function handleAddRide() {
-    if (!token || !selectedMethodId) {
+    if (!token || !selectedMethodId || rideSubmitting || rideRetryLocked) {
       return;
     }
 
@@ -1208,6 +1263,7 @@ function App() {
       return;
     }
 
+    setRideSubmitting(true);
     try {
       const manualTimestamp =
         rideTimingMode === "manual" && manualRideDate && manualRideTime
@@ -1231,6 +1287,9 @@ function App() {
       setFareStatus(status);
     } catch (error) {
       setAppError((error as Error).message);
+      lockActionTemporarily(setRideRetryLocked);
+    } finally {
+      setRideSubmitting(false);
     }
   }
 
@@ -1363,15 +1422,25 @@ function App() {
               />
               {mode === "register" ? (
                 <span className="field-helper">
-                  Use one capital letter, one number, and one special character
+                  Use at least 8 characters with one capital letter, one number, and one special character
                   (!@#$%^&*_-). Spaces are not allowed.
                 </span>
               ) : null}
             </label>
             {authNotice ? <p className="notice">{authNotice}</p> : null}
             {authError ? <p className="error">{authError}</p> : null}
-            <button type="submit" className="primary-button">
-              {mode === "register" ? "Create account" : "Sign in"}
+            <button
+              type="submit"
+              className="primary-button"
+              disabled={authSubmitting || authRetryLocked}
+            >
+              {authSubmitting
+                ? mode === "register"
+                  ? "Creating..."
+                  : "Signing in..."
+                : mode === "register"
+                  ? "Create account"
+                  : "Sign in"}
             </button>
           </form>
         </section>
@@ -1645,8 +1714,12 @@ function App() {
               "4821". TapWise does not store, want, or need your actual card
               information to track rides and fare caps.
             </p>
-            <button type="submit" className="primary-button">
-              Save payment method
+            <button
+              type="submit"
+              className="primary-button"
+              disabled={paymentSubmitting || paymentRetryLocked}
+            >
+              {paymentSubmitting ? "Saving..." : "Save payment method"}
             </button>
           </form>
         </article>
@@ -2048,14 +2121,18 @@ function App() {
             </p>
           </div>
           <div className="account-action-list">
-            <button type="button" className="secondary-button" onClick={handleLogout}>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void handleLogout(true)}
+            >
               Log out
             </button>
             <button
               type="button"
               className="secondary-button danger-button"
               onClick={() => void handleDeleteProfile()}
-              disabled={profileDeleting}
+              disabled={profileDeleting || profileRetryLocked}
             >
               {profileDeleting ? "Deleting..." : "Delete profile"}
             </button>
@@ -2100,7 +2177,11 @@ function App() {
                         : "secondary-button notification-toggle"
                     }
                     onClick={() => void handleNotificationToggle(route)}
-                    disabled={!settings.routeUpdatesEnabled || notificationUpdatingKey === routeKey}
+                    disabled={
+                      !settings.routeUpdatesEnabled ||
+                      notificationUpdatingKey === routeKey ||
+                      notificationRetryKeys.has(routeKey)
+                    }
                   >
                     {route.notifications_enabled ? "Updates on" : "Updates off"}
                   </button>
@@ -2236,9 +2317,13 @@ function App() {
                 className={rideTimingMode === "now" ? "primary-button" : "secondary-button"}
                 onClick={() => void handleAddRide()}
                 type="button"
-                disabled={!selectedMethodId}
+                disabled={!selectedMethodId || rideSubmitting || rideRetryLocked}
               >
-                {rideTimingMode === "now" ? "Add ride now" : "Save dated ride"}
+                {rideSubmitting
+                  ? "Saving..."
+                  : rideTimingMode === "now"
+                    ? "Add ride now"
+                    : "Save dated ride"}
               </button>
             </div>
           </div>

@@ -1,14 +1,16 @@
+from datetime import datetime, timezone
+
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
+from flask_jwt_extended import create_access_token, get_jwt, get_jwt_identity, jwt_required
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from ..extensions import db
-from ..models import User
+from ..models import TokenBlocklist, User
 
 auth_bp = Blueprint("auth", __name__)
 PASSWORD_SPECIAL_CHARACTERS = "!@#$%^&*_-"
 PASSWORD_RULE_MESSAGE = (
-    "Password must include one capital letter, one number, one special "
+    "Password must be at least 8 characters and include one capital letter, one number, one special "
     "character (!@#$%^&*_-), and no spaces."
 )
 
@@ -22,6 +24,8 @@ def _normalize_username(raw_value: str) -> str:
 
 
 def _validate_password(password: str) -> str | None:
+    if len(password) < 8:
+        return PASSWORD_RULE_MESSAGE
     if any(character.isspace() for character in password):
         return PASSWORD_RULE_MESSAGE
     if not any(character.isupper() for character in password):
@@ -31,6 +35,21 @@ def _validate_password(password: str) -> str | None:
     if not any(character in PASSWORD_SPECIAL_CHARACTERS for character in password):
         return PASSWORD_RULE_MESSAGE
     return None
+
+
+def _block_current_token() -> None:
+    token_payload = get_jwt()
+    jti = token_payload.get("jti")
+    expires_at = token_payload.get("exp")
+    if not jti or not expires_at:
+        return
+
+    expires_datetime = datetime.fromtimestamp(expires_at, tz=timezone.utc)
+    existing_token = TokenBlocklist.query.filter_by(jti=jti).first()
+    if existing_token:
+        return
+
+    db.session.add(TokenBlocklist(jti=jti, expires_at=expires_datetime))
 
 
 @auth_bp.post("/register")
@@ -83,13 +102,22 @@ def login():
     return jsonify({"token": access_token, "user": _serialize_user(user)})
 
 
+@auth_bp.post("/logout")
+@jwt_required()
+def logout():
+    _block_current_token()
+    db.session.commit()
+    return jsonify({"message": "Logged out."})
+
+
 @auth_bp.delete("/profile")
 @jwt_required()
 def delete_profile():
     user_id = int(get_jwt_identity())
     user = db.session.get(User, user_id)
+    _block_current_token()
     if user:
         db.session.delete(user)
-        db.session.commit()
+    db.session.commit()
 
     return jsonify({"message": "Profile deleted."})
