@@ -1,12 +1,28 @@
 # TapWise
 
-TapWise is an MVP SaaS web app for tracking NYC subway and bus rides by payment method and modeling OMNY weekly fare capping. Each payment method has its own independent 7-day window, so the app computes ride progress and recommendations per card or device.
+TapWise is an MVP web app for NYC transit riders. It helps users track OMNY-style fare progress by payment method, choose the best card or device for the next tap, check upcoming subway and bus arrivals, and stay aware of service changes on routes they use often.
+
+## Current Features
+
+- Fare tracking by card, OMNY card, mobile wallet, or custom payment method label
+- 7-day fare-cap windows per payment method
+- Best-next-tap recommendations based on fare-cap progress and active transfers
+- Free bus-to-train and train-to-bus transfer tracking
+- Manual and current-time ride logging
+- Separate dashboard tabs for fare tracking and travel
+- Route board for subway and bus lines
+- Live arrivals grouped into adjacent terminal-direction cards
+- Service alerts and delay/service-change display for the selected route
+- Personalized route notifications for frequently used routes
+- User-friendly frontend error messages that avoid exposing server details
+- Light and dark themes
 
 ## Stack
 
 - Backend: Flask, SQLAlchemy, JWT auth
 - Frontend: React + TypeScript with Vite
-- Database: PostgreSQL via `DATABASE_URL` env var
+- Database: PostgreSQL in production via `DATABASE_URL`
+- Realtime transit: MTA GTFS-RT feeds and MTA Bus Time
 
 ## Project Structure
 
@@ -19,6 +35,21 @@ backend/
 frontend/
   src/
 ```
+
+## Environment Variables
+
+### Backend
+
+- `SECRET_KEY`
+- `JWT_SECRET_KEY`
+- `DATABASE_URL`
+- `CLIENT_ORIGIN`
+- `MTA_API_KEY` optional for MTA feeds that require a key
+- `MTA_BUS_TIME_API_KEY` required for live bus arrivals and bus service alerts
+
+### Frontend
+
+- `VITE_API_BASE_URL`
 
 ## Backend Setup
 
@@ -82,11 +113,13 @@ custom `vercel.json` rewrite is not required right now.
   - `JWT_SECRET_KEY`
   - `DATABASE_URL`
   - `CLIENT_ORIGIN=https://<your-vercel-domain>`
+  - `MTA_BUS_TIME_API_KEY`
+  - `MTA_API_KEY` if needed for your MTA account/feed access
 
 `CLIENT_ORIGIN` also accepts a comma-separated list if you need to allow both your production
 Vercel domain and a preview or staging frontend.
 
-This repo also includes [render.yaml](/abs/path/C:/Users/Jonathan/Fare_TrackerMVP/render.yaml:1) as a Render Blueprint starter for provisioning the backend service and a PostgreSQL database together.
+This repo also includes [render.yaml](render.yaml) as a Render Blueprint starter for provisioning the backend service and a PostgreSQL database together.
 
 ### Database
 
@@ -96,7 +129,7 @@ This repo also includes [render.yaml](/abs/path/C:/Users/Jonathan/Fare_TrackerMV
 
 ## VS Code
 
-The repo includes [.vscode/settings.json](/abs/path/C:/Users/Jonathan/Fare_TrackerMVP/.vscode/settings.json:1) to point the Python extension at `backend/.venv`, load `backend/.env`, and make backend imports easier for analysis.
+The repo includes [.vscode/settings.json](.vscode/settings.json) to point the Python extension at `backend/.venv`, load `backend/.env`, and make backend imports easier for analysis.
 
 If your editor still shows missing Flask package imports, re-select the interpreter manually and choose the Python environment inside `backend/.venv`.
 
@@ -110,6 +143,12 @@ If your editor still shows missing Flask package imports, re-select the interpre
 - `POST /api/rides`
 - `GET /api/fare-status/:payment_method_id`
 - `GET /api/recommendation`
+- `GET /api/transit-options`
+- `GET /api/routes`
+- `GET /api/arrivals`
+- `GET /api/service-alerts`
+- `GET /api/personalized-alerts`
+- `PUT /api/notification-preferences`
 
 Compatibility aliases were added for the typo variants from the spec (`payment_mthods`, `recomendation`).
 
@@ -121,3 +160,11 @@ Compatibility aliases were added for the typo variants from the spec (`payment_m
 - Free transfer rides do not count toward the 12-ride fare cap.
 - After 12 rides in that active window, `cap_reached` becomes true and the method is treated as having free rides until the window expires.
 - If the current time is past the window end, the next ride starts a fresh 7-day window.
+
+## Transit Logic
+
+- Subway arrivals are pulled from MTA GTFS-RT feeds when available.
+- Bus arrivals and bus service alerts use MTA Bus Time and require `MTA_BUS_TIME_API_KEY`.
+- Arrival results are grouped by route terminal so users can see the exact direction instead of relying on vague northbound or southbound labels.
+- Selected-route service alerts load automatically when the user chooses a train or bus line.
+- Frequent-route notifications are based on the user's logged ride history and notification preferences.
