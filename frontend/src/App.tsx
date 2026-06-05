@@ -1562,7 +1562,7 @@ function App() {
           className={dashboardTab === "payments" ? "active" : ""}
           onClick={() => setDashboardTab("payments")}
         >
-          <span>Payments</span>
+          <span>Pay</span>
           <small>{paymentMethods.length} saved</small>
         </button>
         <button
@@ -1578,11 +1578,15 @@ function App() {
         <button
           type="button"
           role="tab"
+          aria-label="Settings"
           aria-selected={dashboardTab === "settings"}
-          className={dashboardTab === "settings" ? "active" : ""}
+          className={dashboardTab === "settings" ? "active icon-tab" : "icon-tab"}
+          data-tooltip="Settings"
           onClick={() => setDashboardTab("settings")}
         >
-          <span>Settings</span>
+          <span aria-hidden="true" className="gear-icon">
+            ⚙
+          </span>
           <small>Preferences</small>
         </button>
       </div>

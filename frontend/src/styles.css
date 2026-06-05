@@ -672,6 +672,7 @@ p {
 }
 
 .dashboard-tabs button {
+  position: relative;
   display: grid;
   gap: 0.1rem;
   align-content: center;
@@ -714,6 +715,34 @@ p {
 
 .dashboard-tabs button.active small {
   color: rgba(255, 255, 255, 0.82);
+}
+
+.icon-tab {
+  justify-items: center;
+}
+
+.gear-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.icon-tab:hover::after,
+.icon-tab:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 0.45rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 0.35rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  color: var(--ink);
+  font-size: 0.76rem;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
 }
 
 .hidden-tab-content {
@@ -1689,8 +1718,16 @@ p {
   .dashboard-tabs button {
     justify-items: center;
     min-height: 54px;
-    padding: 0.55rem 0.35rem;
+    padding: 0.55rem 0.25rem;
     text-align: center;
+  }
+
+  .dashboard-tabs span {
+    font-size: 0.82rem;
+  }
+
+  .dashboard-tabs .gear-icon {
+    font-size: 1.28rem;
   }
 
   .dashboard-tabs small {
