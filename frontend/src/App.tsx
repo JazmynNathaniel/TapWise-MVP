@@ -2103,11 +2103,7 @@ function App() {
               <TravelNavIcon />
             </span>
             <span className="sr-only">Travel</span>
-            <small>
-              {selectedRouteLine
-                ? `${formatModeLabel(selectedRouteMode)} ${selectedRouteLine}`
-                : "Choose service"}
-            </small>
+            <small>GO</small>
           </button>
           {travelMenuOpen ? (
             <div className="travel-menu" id="travel-service-menu" aria-label="Travel services">
