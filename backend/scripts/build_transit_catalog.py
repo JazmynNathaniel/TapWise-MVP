@@ -21,6 +21,8 @@ FEEDS = {
         "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_si.zip",
         "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_busco.zip",
     ],
+    "lirr": ["https://rrgtfsfeeds.s3.amazonaws.com/gtfslirr.zip"],
+    "metro_north": ["https://rrgtfsfeeds.s3.amazonaws.com/gtfsmnr.zip"],
 }
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "app" / "data"
@@ -187,7 +189,7 @@ def _build_route_stop_map(url: str) -> tuple[dict[str, list[str]], dict[str, lis
 
 
 def main() -> None:
-    catalog = _load_json(OUTPUT_PATH) or {"subway": {}, "bus": {}}
+    catalog = _load_json(OUTPUT_PATH) or {mode: {} for mode in FEEDS}
     metadata = _load_json(METADATA_OUTPUT_PATH) or _metadata_from_catalog(catalog)
     for mode, urls in FEEDS.items():
         if mode not in _selected_modes():

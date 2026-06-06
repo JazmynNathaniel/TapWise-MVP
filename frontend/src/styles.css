@@ -913,6 +913,13 @@ p {
   background: rgba(0, 147, 60, 0.14);
 }
 
+.browser-notice {
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .banner.transfer {
   display: flex;
   align-items: center;
@@ -1075,12 +1082,12 @@ p {
 
 .route-dropdown-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 0.85rem;
 }
 
 .route-stop-select {
-  grid-column: span 2;
+  grid-column: 1 / -1;
 }
 
 .arrival-board {

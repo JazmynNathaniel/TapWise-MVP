@@ -11,6 +11,7 @@ import {
   Ride,
   RouteSummary,
   ServiceAlertResponse,
+  TransitMode,
   TransitOptions,
   User
 } from "./types";
@@ -45,6 +46,38 @@ const PAYMENT_TYPE_OPTIONS = [
   { value: "other", label: "Other" }
 ];
 
+const TRANSIT_MODE_OPTIONS: Array<{
+  value: TransitMode;
+  label: string;
+  routeLabel: string;
+  placeholder: string;
+}> = [
+  {
+    value: "subway",
+    label: "Subway",
+    routeLabel: "Subway line",
+    placeholder: "Select subway"
+  },
+  {
+    value: "bus",
+    label: "Bus",
+    routeLabel: "Bus line",
+    placeholder: "Select bus"
+  },
+  {
+    value: "lirr",
+    label: "LIRR",
+    routeLabel: "LIRR branch",
+    placeholder: "Select LIRR"
+  },
+  {
+    value: "metro_north",
+    label: "Metro-North",
+    routeLabel: "Metro-North line",
+    placeholder: "Select Metro-North"
+  }
+];
+
 type AuthMode = "login" | "register";
 type ThemeMode = "dark" | "light";
 type DashboardTab = "fare" | "travel" | "payments" | "rides" | "settings";
@@ -58,7 +91,7 @@ type PaymentFormState = {
 };
 
 type RideFormState = {
-  transitMode: "subway" | "bus";
+  transitMode: TransitMode;
   transitLine: string;
   entryStop: string;
   exitStop: string;
@@ -119,6 +152,68 @@ const defaultSettings: AppSettings = {
   notificationVolume: 90,
   soundOption: "service_change"
 };
+
+function safeStorageGetItem(key: string) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeStorageSetItem(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Some social app browsers block saved browser data.
+  }
+}
+
+function safeStorageRemoveItem(key: string) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Some social app browsers block saved browser data.
+  }
+}
+
+function browserStorageAvailable() {
+  const testKey = "tapwise_storage_check";
+  try {
+    window.localStorage.setItem(testKey, "1");
+    window.localStorage.removeItem(testKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getBrowserSupportNotice() {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const isEmbeddedBrowser = [
+    "instagram",
+    "fban",
+    "fbav",
+    "fb_iab",
+    "threads",
+    "barcelona",
+    "twitter",
+    "tiktok",
+    "linkedinapp",
+    "snapchat",
+    "pinterest"
+  ].some((marker) => userAgent.includes(marker));
+
+  if (isEmbeddedBrowser) {
+    return "TapWise works best in Safari, Chrome, Edge, or Firefox. Social app browsers can block route updates and make it harder to stay signed in, so open this link in your browser for the full app.";
+  }
+
+  if (!browserStorageAvailable()) {
+    return "TapWise needs your browser to remember that you signed in while you use the app. Please open TapWise in Safari, Chrome, Edge, or Firefox.";
+  }
+
+  return "";
+}
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -212,7 +307,7 @@ function playNotificationPreview(soundOption: SoundOption, volume: number) {
 }
 
 function formatModeLabel(value: string) {
-  return value === "bus" ? "Bus" : "Subway";
+  return TRANSIT_MODE_OPTIONS.find((option) => option.value === value)?.label ?? value;
 }
 
 function getArrivalDirectionBucket(arrival: Arrival): "first" | "last" {
@@ -280,7 +375,7 @@ function formatPaymentType(value: string) {
 }
 
 function formatTransitLabel(value: string | null) {
-  if (value === "subway") {
+  if (value === "subway" || value === "lirr" || value === "metro_north") {
     return "train";
   }
   if (value === "bus") {
@@ -372,7 +467,7 @@ function buildTransferReminderMessage(notice: ActiveTransferNotice, reminderBuck
 }
 
 function hydrateSilencedTransferKeys() {
-  const rawValue = localStorage.getItem(SILENCED_TRANSFER_NOTIFICATIONS_KEY);
+  const rawValue = safeStorageGetItem(SILENCED_TRANSFER_NOTIFICATIONS_KEY);
   if (!rawValue) {
     return new Set<string>();
   }
@@ -390,18 +485,18 @@ function hydrateSilencedTransferKeys() {
 }
 
 function persistSilencedTransferKeys(keys: Set<string>) {
-  localStorage.setItem(
+  safeStorageSetItem(
     SILENCED_TRANSFER_NOTIFICATIONS_KEY,
     JSON.stringify(Array.from(keys))
   );
 }
 
 function getStoredTheme(): ThemeMode {
-  return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
+  return safeStorageGetItem(THEME_KEY) === "light" ? "light" : "dark";
 }
 
 function hydrateStoredSettings(): AppSettings {
-  const rawValue = localStorage.getItem(SETTINGS_KEY);
+  const rawValue = safeStorageGetItem(SETTINGS_KEY);
   if (!rawValue) {
     return defaultSettings;
   }
@@ -577,7 +672,7 @@ function validatePaymentForm(form: PaymentFormState) {
 
 function validateRideForm(form: RideFormState) {
   if (!form.transitLine) {
-    return "Select a train or bus line.";
+    return "Select a transit line.";
   }
   if (!form.entryStop) {
     return "Select the stop where you entered.";
@@ -610,10 +705,10 @@ function App() {
   const [username, setUsername] = useState("tapwise_rider");
   const [email, setEmail] = useState("demo@tapwise.app");
   const [password, setPassword] = useState("Password123!");
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
-  const [user, setUser] = useState<User | null>(() => hydrateStoredUser(localStorage.getItem(USER_KEY)));
+  const [token, setToken] = useState<string | null>(() => safeStorageGetItem(TOKEN_KEY));
+  const [user, setUser] = useState<User | null>(() => hydrateStoredUser(safeStorageGetItem(USER_KEY)));
   const [hasAuthenticatedBefore, setHasAuthenticatedBefore] = useState(
-    () => localStorage.getItem(HAS_AUTHENTICATED_BEFORE_KEY) === "true"
+    () => safeStorageGetItem(HAS_AUTHENTICATED_BEFORE_KEY) === "true"
   );
   const [isFirstAuthenticatedSession, setIsFirstAuthenticatedSession] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -626,7 +721,7 @@ function App() {
   const [transitOptions, setTransitOptions] = useState<TransitOptions | null>(null);
   const [, setRouteSummaries] = useState<RouteSummary[]>([]);
   const [personalizedAlerts, setPersonalizedAlerts] = useState<PersonalizedAlerts | null>(null);
-  const [selectedRouteMode, setSelectedRouteMode] = useState<"subway" | "bus">("subway");
+  const [selectedRouteMode, setSelectedRouteMode] = useState<TransitMode>("subway");
   const [selectedRouteLine, setSelectedRouteLine] = useState("");
   const [selectedRouteStop, setSelectedRouteStop] = useState("");
   const [arrivalBoard, setArrivalBoard] = useState<ArrivalResponse | null>(null);
@@ -671,14 +766,15 @@ function App() {
   const transferNotificationsOff = activeTransferKey
     ? silencedTransferKeys.has(activeTransferKey)
     : false;
+  const browserSupportNotice = getBrowserSupportNotice();
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem(THEME_KEY, theme);
+    safeStorageSetItem(THEME_KEY, theme);
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    safeStorageSetItem(SETTINGS_KEY, JSON.stringify(settings));
   }, [settings]);
 
   useEffect(() => {
@@ -720,7 +816,7 @@ function App() {
     }
 
     setRideForm((current) => {
-      const modeOptions = transitOptions[current.transitMode];
+      const modeOptions = transitOptions[current.transitMode] ?? {};
       const lines = Object.keys(modeOptions);
       const transitLine =
         current.transitLine && modeOptions[current.transitLine]
@@ -758,9 +854,10 @@ function App() {
       return;
     }
 
-    const lines = Object.keys(transitOptions[selectedRouteMode]);
+    const routeOptions = transitOptions[selectedRouteMode] ?? {};
+    const lines = Object.keys(routeOptions);
     setSelectedRouteLine((current) => {
-      if (current && transitOptions[selectedRouteMode][current]) {
+      if (current && routeOptions[current]) {
         return current;
       }
       return lines[0] ?? "";
@@ -773,7 +870,7 @@ function App() {
       return;
     }
 
-    const stops = transitOptions[selectedRouteMode][selectedRouteLine] ?? [];
+    const stops = transitOptions[selectedRouteMode]?.[selectedRouteLine] ?? [];
     setSelectedRouteStop((current) => {
       if (current && stops.includes(current)) {
         return current;
@@ -1031,9 +1128,9 @@ function App() {
           : await api.login(email, password);
       const firstAuthenticatedSession = !hasAuthenticatedBefore;
 
-      localStorage.setItem(TOKEN_KEY, response.token);
-      localStorage.setItem(USER_KEY, JSON.stringify(response.user));
-      localStorage.setItem(HAS_AUTHENTICATED_BEFORE_KEY, "true");
+      safeStorageSetItem(TOKEN_KEY, response.token);
+      safeStorageSetItem(USER_KEY, JSON.stringify(response.user));
+      safeStorageSetItem(HAS_AUTHENTICATED_BEFORE_KEY, "true");
       setToken(response.token);
       setUser(response.user);
       setIsFirstAuthenticatedSession(firstAuthenticatedSession);
@@ -1060,8 +1157,8 @@ function App() {
       }
     }
 
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
+    safeStorageRemoveItem(TOKEN_KEY);
+    safeStorageRemoveItem(USER_KEY);
     setToken(null);
     setUser(null);
     setPaymentMethods([]);
@@ -1166,14 +1263,14 @@ function App() {
     });
   }
 
-  function selectTravelRoute(mode: "subway" | "bus", line: string) {
+  function selectTravelRoute(mode: TransitMode, line: string) {
     if (!line) {
       return;
     }
 
     setSelectedRouteMode(mode);
     setSelectedRouteLine(line);
-    const stops = transitOptions?.[mode][line] ?? [];
+    const stops = transitOptions?.[mode]?.[line] ?? [];
     setSelectedRouteStop(stops[0] ?? "");
   }
 
@@ -1296,8 +1393,9 @@ function App() {
           <h1 id="auth-title">TapWise</h1>
           <p className="auth-tagline">Know your fare, your route, and what is coming next.</p>
           <p className="lede">
-            TapWise helps you choose the right card, see upcoming subway and bus
-            arrivals, and keep an eye on service changes for the routes you use most.
+            TapWise helps you choose the right card, see upcoming subway, bus,
+            LIRR, and Metro-North arrivals, and keep an eye on service changes
+            for the routes you use most.
           </p>
 
           <div className="auth-stat-grid" aria-label="TapWise app features">
@@ -1307,7 +1405,7 @@ function App() {
             </div>
             <div>
               <strong>Travel</strong>
-              <span>next train or bus by route</span>
+              <span>next transit arrivals by route</span>
             </div>
             <div>
               <strong>Alerts</strong>
@@ -1357,6 +1455,10 @@ function App() {
             </div>
             <ThemeToggle theme={theme} onThemeChange={setTheme} />
           </div>
+
+          {browserSupportNotice ? (
+            <div className="banner notice browser-notice">{browserSupportNotice}</div>
+          ) : null}
 
           <div className="mode-toggle">
             <button
@@ -1436,18 +1538,15 @@ function App() {
     );
   }
 
-  const availableLines = transitOptions
-    ? Object.keys(transitOptions[rideForm.transitMode])
-    : [];
+  const availableModeOptions = transitOptions?.[rideForm.transitMode] ?? {};
+  const availableLines = Object.keys(availableModeOptions);
   const availableStops =
-    transitOptions && rideForm.transitLine
-      ? transitOptions[rideForm.transitMode][rideForm.transitLine] ?? []
-      : [];
-  const subwayRouteOptions = transitOptions?.subway ?? {};
-  const busRouteOptions = transitOptions?.bus ?? {};
-  const subwayRouteLines = Object.keys(subwayRouteOptions);
-  const busRouteLines = Object.keys(busRouteOptions);
-  const routeModeOptions = transitOptions ? transitOptions[selectedRouteMode] : {};
+    rideForm.transitLine ? availableModeOptions[rideForm.transitLine] ?? [] : [];
+  const routeModeOptions = transitOptions?.[selectedRouteMode] ?? {};
+  const routeOptionGroups = TRANSIT_MODE_OPTIONS.map((option) => ({
+    ...option,
+    lines: Object.keys(transitOptions?.[option.value] ?? {})
+  }));
   const routeStops = selectedRouteLine ? routeModeOptions[selectedRouteLine] ?? [] : [];
   const firstRouteStop = routeStops[0] ?? "";
   const lastRouteStop = routeStops[routeStops.length - 1] ?? "";
@@ -1486,6 +1585,9 @@ function App() {
         </div>
       </header>
 
+      {browserSupportNotice ? (
+        <div className="banner notice browser-notice">{browserSupportNotice}</div>
+      ) : null}
       {appError ? <div className="banner error">{appError}</div> : null}
       {activeTransferNotice && settings.transferRemindersEnabled ? (
         <div className="banner transfer" role="status" aria-live="polite">
@@ -1785,34 +1887,22 @@ function App() {
           <div className="route-board-grid">
             <div className="route-picker">
               <div className="route-dropdown-grid">
-                <label>
-                  Subway line
-                  <select
-                    value={selectedRouteMode === "subway" ? selectedRouteLine : ""}
-                    onChange={(event) => selectTravelRoute("subway", event.target.value)}
-                  >
-                    <option value="">Select subway</option>
-                    {subwayRouteLines.map((line) => (
-                      <option key={line} value={line}>
-                        {line}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Bus line
-                  <select
-                    value={selectedRouteMode === "bus" ? selectedRouteLine : ""}
-                    onChange={(event) => selectTravelRoute("bus", event.target.value)}
-                  >
-                    <option value="">Select bus</option>
-                    {busRouteLines.map((line) => (
-                      <option key={line} value={line}>
-                        {line}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {routeOptionGroups.map((option) => (
+                  <label key={option.value}>
+                    {option.routeLabel}
+                    <select
+                      value={selectedRouteMode === option.value ? selectedRouteLine : ""}
+                      onChange={(event) => selectTravelRoute(option.value, event.target.value)}
+                    >
+                      <option value="">{option.placeholder}</option>
+                      {option.lines.map((line) => (
+                        <option key={line} value={line}>
+                          {line}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
                 <label className="route-stop-select">
                   Stop for selected route
                   <select
@@ -1846,7 +1936,7 @@ function App() {
                       {selectedRouteAlerts.alerts.map((alert) => (
                         <div className="selected-alert-card" key={alert.id}>
                           <span className="route-chip">
-                            {alert.transit_mode.toUpperCase()} {alert.line ?? selectedRouteLine}
+                            {formatModeLabel(alert.transit_mode)} {alert.line ?? selectedRouteLine}
                           </span>
                           <strong>{alert.title}</strong>
                           <p>{alert.description || alert.effect || "Service change reported."}</p>
@@ -1937,7 +2027,7 @@ function App() {
               ? personalizedNotifications.map((notification) => (
                   <div className="notification-card" key={notification.id}>
                     <span className="route-chip">
-                      {notification.transit_mode.toUpperCase()} {notification.line}
+                      {formatModeLabel(notification.transit_mode)} {notification.line}
                     </span>
                     <strong>{notification.title}</strong>
                     <p>{notification.message}</p>
@@ -2140,7 +2230,7 @@ function App() {
               return (
                 <div className="frequent-route-row" key={routeKey}>
                   <div>
-                    <strong>{route.line}</strong>
+                    <strong>{formatModeLabel(route.transit_mode)} {route.line}</strong>
                     <span>
                       {route.entry_stop} to {route.exit_stop}
                     </span>
@@ -2202,8 +2292,11 @@ function App() {
                     )
                   }
                 >
-                  <option value="subway">Subway</option>
-                  <option value="bus">Bus</option>
+                  {TRANSIT_MODE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label>
@@ -2334,7 +2427,7 @@ function App() {
                 </div>
                 <div className="ride-chip-row">
                   <span className="route-chip">
-                    {ride.transit_mode.toUpperCase()} {ride.transit_line}
+                    {formatModeLabel(ride.transit_mode)} {ride.transit_line}
                   </span>
                   <span className={ride.is_transfer ? "fare-chip transfer-chip" : "fare-chip"}>
                     {ride.is_transfer ? "Free transfer used" : "Cap ride"}

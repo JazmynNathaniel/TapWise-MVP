@@ -118000,5 +118000,2700 @@
         ]
       }
     ]
+  },
+  "lirr": {
+    "Babylon Branch": [
+      {
+        "name": "Penn Station",
+        "stop_ids": [
+          "237"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Forest Hills",
+        "stop_ids": [
+          "55"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Kew Gardens",
+        "stop_ids": [
+          "107"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Jamaica",
+        "stop_ids": [
+          "102"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Lynbrook",
+        "stop_ids": [
+          "125"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Rockville Centre",
+        "stop_ids": [
+          "183"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Baldwin",
+        "stop_ids": [
+          "225"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Freeport",
+        "stop_ids": [
+          "64"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Merrick",
+        "stop_ids": [
+          "226"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Bellmore",
+        "stop_ids": [
+          "16"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Wantagh",
+        "stop_ids": [
+          "215"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Seaford",
+        "stop_ids": [
+          "187"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Massapequa",
+        "stop_ids": [
+          "136"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Massapequa Park",
+        "stop_ids": [
+          "135"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Amityville",
+        "stop_ids": [
+          "8"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Copiague",
+        "stop_ids": [
+          "38"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Lindenhurst",
+        "stop_ids": [
+          "117"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Babylon",
+        "stop_ids": [
+          "27"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      }
+    ],
+    "City Terminal Zone": [
+      {
+        "name": "Grand Central",
+        "stop_ids": [
+          "349"
+        ],
+        "route_ids": [
+          "12"
+        ]
+      },
+      {
+        "name": "Woodside",
+        "stop_ids": [
+          "214"
+        ],
+        "route_ids": [
+          "12"
+        ]
+      },
+      {
+        "name": "Forest Hills",
+        "stop_ids": [
+          "55"
+        ],
+        "route_ids": [
+          "12"
+        ]
+      },
+      {
+        "name": "Kew Gardens",
+        "stop_ids": [
+          "107"
+        ],
+        "route_ids": [
+          "12"
+        ]
+      },
+      {
+        "name": "Jamaica",
+        "stop_ids": [
+          "102"
+        ],
+        "route_ids": [
+          "12"
+        ]
+      }
+    ],
+    "Far Rockaway Branch": [
+      {
+        "name": "Far Rockaway",
+        "stop_ids": [
+          "65"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Inwood",
+        "stop_ids": [
+          "101"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Lawrence",
+        "stop_ids": [
+          "114"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Cedarhurst",
+        "stop_ids": [
+          "32"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Woodmere",
+        "stop_ids": [
+          "217"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Hewlett",
+        "stop_ids": [
+          "94"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Gibson",
+        "stop_ids": [
+          "66"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Valley Stream",
+        "stop_ids": [
+          "211"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Rosedale",
+        "stop_ids": [
+          "180"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Laurelton",
+        "stop_ids": [
+          "122"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Locust Manor",
+        "stop_ids": [
+          "119"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Jamaica",
+        "stop_ids": [
+          "102"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Kew Gardens",
+        "stop_ids": [
+          "107"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Forest Hills",
+        "stop_ids": [
+          "55"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Woodside",
+        "stop_ids": [
+          "214"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      },
+      {
+        "name": "Penn Station",
+        "stop_ids": [
+          "237"
+        ],
+        "route_ids": [
+          "7"
+        ]
+      }
+    ],
+    "Greenport Service": [
+      {
+        "name": "Greenport",
+        "stop_ids": [
+          "73"
+        ],
+        "route_ids": [
+          "13"
+        ]
+      },
+      {
+        "name": "Southold",
+        "stop_ids": [
+          "190"
+        ],
+        "route_ids": [
+          "13"
+        ]
+      },
+      {
+        "name": "Mattituck",
+        "stop_ids": [
+          "126"
+        ],
+        "route_ids": [
+          "13"
+        ]
+      },
+      {
+        "name": "Riverhead",
+        "stop_ids": [
+          "176"
+        ],
+        "route_ids": [
+          "13"
+        ]
+      },
+      {
+        "name": "Yaphank",
+        "stop_ids": [
+          "223"
+        ],
+        "route_ids": [
+          "13"
+        ]
+      },
+      {
+        "name": "Medford",
+        "stop_ids": [
+          "129"
+        ],
+        "route_ids": [
+          "13"
+        ]
+      },
+      {
+        "name": "Ronkonkoma",
+        "stop_ids": [
+          "179"
+        ],
+        "route_ids": [
+          "13"
+        ]
+      }
+    ],
+    "Hempstead Branch": [
+      {
+        "name": "Hempstead",
+        "stop_ids": [
+          "84"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Country Life Press",
+        "stop_ids": [
+          "36"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Garden City",
+        "stop_ids": [
+          "68"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Nassau Boulevard",
+        "stop_ids": [
+          "149"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Stewart Manor",
+        "stop_ids": [
+          "195"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Floral Park",
+        "stop_ids": [
+          "63"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Bellerose",
+        "stop_ids": [
+          "23"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Elmont-UBS Arena",
+        "stop_ids": [
+          "359"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Queens Village",
+        "stop_ids": [
+          "175"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Hollis",
+        "stop_ids": [
+          "89"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Hillside Facility",
+        "stop_ids": [
+          "86"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Jamaica",
+        "stop_ids": [
+          "102"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Kew Gardens",
+        "stop_ids": [
+          "107"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Forest Hills",
+        "stop_ids": [
+          "55"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Grand Central",
+        "stop_ids": [
+          "349"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      }
+    ],
+    "Long Beach Branch": [
+      {
+        "name": "Long Beach",
+        "stop_ids": [
+          "113"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Island Park",
+        "stop_ids": [
+          "99"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Oceanside",
+        "stop_ids": [
+          "155"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "East Rockaway",
+        "stop_ids": [
+          "51"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Centre Avenue",
+        "stop_ids": [
+          "31"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Lynbrook",
+        "stop_ids": [
+          "125"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Valley Stream",
+        "stop_ids": [
+          "211"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Rosedale",
+        "stop_ids": [
+          "180"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Laurelton",
+        "stop_ids": [
+          "122"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Locust Manor",
+        "stop_ids": [
+          "119"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Jamaica",
+        "stop_ids": [
+          "102"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Kew Gardens",
+        "stop_ids": [
+          "107"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Forest Hills",
+        "stop_ids": [
+          "55"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Woodside",
+        "stop_ids": [
+          "214"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Penn Station",
+        "stop_ids": [
+          "237"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      }
+    ],
+    "Montauk Branch": [
+      {
+        "name": "Long Island City",
+        "stop_ids": [
+          "118"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Hunterspoint Avenue",
+        "stop_ids": [
+          "90"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Jamaica",
+        "stop_ids": [
+          "102"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Babylon",
+        "stop_ids": [
+          "27"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Bay Shore",
+        "stop_ids": [
+          "26"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Islip",
+        "stop_ids": [
+          "100"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Great River",
+        "stop_ids": [
+          "74"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Oakdale",
+        "stop_ids": [
+          "157"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Sayville",
+        "stop_ids": [
+          "204"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Patchogue",
+        "stop_ids": [
+          "163"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Bellport",
+        "stop_ids": [
+          "21"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Mastic-Shirley",
+        "stop_ids": [
+          "140"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Speonk",
+        "stop_ids": [
+          "198"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Westhampton",
+        "stop_ids": [
+          "233"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Hampton Bays",
+        "stop_ids": [
+          "83"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Shinnecock Hills",
+        "stop_ids": [
+          "245"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Southampton",
+        "stop_ids": [
+          "191"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Bridgehampton",
+        "stop_ids": [
+          "13"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "East Hampton",
+        "stop_ids": [
+          "48"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Amagansett",
+        "stop_ids": [
+          "4"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Montauk",
+        "stop_ids": [
+          "141"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      }
+    ],
+    "Oyster Bay Branch": [
+      {
+        "name": "Oyster Bay",
+        "stop_ids": [
+          "154"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Locust Valley",
+        "stop_ids": [
+          "123"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Glen Cove",
+        "stop_ids": [
+          "67"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Glen Street",
+        "stop_ids": [
+          "76"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Sea Cliff",
+        "stop_ids": [
+          "185"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Glen Head",
+        "stop_ids": [
+          "71"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Greenvale",
+        "stop_ids": [
+          "77"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Roslyn",
+        "stop_ids": [
+          "182"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Albertson",
+        "stop_ids": [
+          "1"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "East Williston",
+        "stop_ids": [
+          "52"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Mineola",
+        "stop_ids": [
+          "132"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Jamaica",
+        "stop_ids": [
+          "102"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Hunterspoint Avenue",
+        "stop_ids": [
+          "90"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Long Island City",
+        "stop_ids": [
+          "118"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      }
+    ],
+    "Port Jefferson Branch": [
+      {
+        "name": "Huntington",
+        "stop_ids": [
+          "91"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Cold Spring Harbor",
+        "stop_ids": [
+          "40"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Syosset",
+        "stop_ids": [
+          "205"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Hicksville",
+        "stop_ids": [
+          "92"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Westbury",
+        "stop_ids": [
+          "213"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Carle Place",
+        "stop_ids": [
+          "39"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Mineola",
+        "stop_ids": [
+          "132"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Merillon Avenue",
+        "stop_ids": [
+          "127"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "New Hyde Park",
+        "stop_ids": [
+          "152"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Floral Park",
+        "stop_ids": [
+          "63"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Elmont-UBS Arena",
+        "stop_ids": [
+          "359"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Queens Village",
+        "stop_ids": [
+          "175"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Hollis",
+        "stop_ids": [
+          "89"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Hillside Facility",
+        "stop_ids": [
+          "86"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Jamaica",
+        "stop_ids": [
+          "102"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Kew Gardens",
+        "stop_ids": [
+          "107"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Forest Hills",
+        "stop_ids": [
+          "55"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      },
+      {
+        "name": "Penn Station",
+        "stop_ids": [
+          "237"
+        ],
+        "route_ids": [
+          "10"
+        ]
+      }
+    ],
+    "Port Washington Branch": [
+      {
+        "name": "Penn Station",
+        "stop_ids": [
+          "237"
+        ],
+        "route_ids": [
+          "9"
+        ]
+      },
+      {
+        "name": "Woodside",
+        "stop_ids": [
+          "214"
+        ],
+        "route_ids": [
+          "9"
+        ]
+      },
+      {
+        "name": "Mets-Willets Point",
+        "stop_ids": [
+          "199"
+        ],
+        "route_ids": [
+          "9"
+        ]
+      },
+      {
+        "name": "Flushing Main Street",
+        "stop_ids": [
+          "56"
+        ],
+        "route_ids": [
+          "9"
+        ]
+      },
+      {
+        "name": "Murray Hill",
+        "stop_ids": [
+          "130"
+        ],
+        "route_ids": [
+          "9"
+        ]
+      },
+      {
+        "name": "Broadway",
+        "stop_ids": [
+          "11"
+        ],
+        "route_ids": [
+          "9"
+        ]
+      },
+      {
+        "name": "Auburndale",
+        "stop_ids": [
+          "2"
+        ],
+        "route_ids": [
+          "9"
+        ]
+      },
+      {
+        "name": "Bayside",
+        "stop_ids": [
+          "25"
+        ],
+        "route_ids": [
+          "9"
+        ]
+      },
+      {
+        "name": "Douglaston",
+        "stop_ids": [
+          "42"
+        ],
+        "route_ids": [
+          "9"
+        ]
+      },
+      {
+        "name": "Little Neck",
+        "stop_ids": [
+          "120"
+        ],
+        "route_ids": [
+          "9"
+        ]
+      },
+      {
+        "name": "Great Neck",
+        "stop_ids": [
+          "72"
+        ],
+        "route_ids": [
+          "9"
+        ]
+      },
+      {
+        "name": "Manhasset",
+        "stop_ids": [
+          "131"
+        ],
+        "route_ids": [
+          "9"
+        ]
+      },
+      {
+        "name": "Plandome",
+        "stop_ids": [
+          "162"
+        ],
+        "route_ids": [
+          "9"
+        ]
+      },
+      {
+        "name": "Port Washington",
+        "stop_ids": [
+          "171"
+        ],
+        "route_ids": [
+          "9"
+        ]
+      }
+    ],
+    "Ronkonkoma Branch": [
+      {
+        "name": "Penn Station",
+        "stop_ids": [
+          "237"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Woodside",
+        "stop_ids": [
+          "214"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Forest Hills",
+        "stop_ids": [
+          "55"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Kew Gardens",
+        "stop_ids": [
+          "107"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Jamaica",
+        "stop_ids": [
+          "102"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Hillside Facility",
+        "stop_ids": [
+          "86"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Floral Park",
+        "stop_ids": [
+          "63"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Mineola",
+        "stop_ids": [
+          "132"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Hicksville",
+        "stop_ids": [
+          "92"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Bethpage",
+        "stop_ids": [
+          "20"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Farmingdale",
+        "stop_ids": [
+          "59"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Wyandanch",
+        "stop_ids": [
+          "220"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Deer Park",
+        "stop_ids": [
+          "44"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Brentwood",
+        "stop_ids": [
+          "29"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Central Islip",
+        "stop_ids": [
+          "33"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Ronkonkoma",
+        "stop_ids": [
+          "179"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      }
+    ],
+    "West Hempstead Branch": [
+      {
+        "name": "Atlantic Terminal",
+        "stop_ids": [
+          "241"
+        ],
+        "route_ids": [
+          "8"
+        ]
+      },
+      {
+        "name": "Nostrand Avenue",
+        "stop_ids": [
+          "148"
+        ],
+        "route_ids": [
+          "8"
+        ]
+      },
+      {
+        "name": "East New York",
+        "stop_ids": [
+          "50"
+        ],
+        "route_ids": [
+          "8"
+        ]
+      },
+      {
+        "name": "Jamaica",
+        "stop_ids": [
+          "102"
+        ],
+        "route_ids": [
+          "8"
+        ]
+      },
+      {
+        "name": "St. Albans",
+        "stop_ids": [
+          "184"
+        ],
+        "route_ids": [
+          "8"
+        ]
+      },
+      {
+        "name": "Westwood",
+        "stop_ids": [
+          "219"
+        ],
+        "route_ids": [
+          "8"
+        ]
+      },
+      {
+        "name": "Malverne",
+        "stop_ids": [
+          "142"
+        ],
+        "route_ids": [
+          "8"
+        ]
+      },
+      {
+        "name": "Lakeview",
+        "stop_ids": [
+          "124"
+        ],
+        "route_ids": [
+          "8"
+        ]
+      },
+      {
+        "name": "Hempstead Gardens",
+        "stop_ids": [
+          "85"
+        ],
+        "route_ids": [
+          "8"
+        ]
+      },
+      {
+        "name": "West Hempstead",
+        "stop_ids": [
+          "216"
+        ],
+        "route_ids": [
+          "8"
+        ]
+      }
+    ]
+  },
+  "metro_north": {
+    "Danbury": [
+      {
+        "name": "Grand Central",
+        "stop_ids": [
+          "1"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Harlem-125 St",
+        "stop_ids": [
+          "4"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Greenwich",
+        "stop_ids": [
+          "116"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Stamford",
+        "stop_ids": [
+          "124"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Noroton Heights",
+        "stop_ids": [
+          "127"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Darien",
+        "stop_ids": [
+          "128"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Rowayton",
+        "stop_ids": [
+          "129"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "South Norwalk",
+        "stop_ids": [
+          "131"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Merritt 7",
+        "stop_ids": [
+          "158"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Wilton",
+        "stop_ids": [
+          "160"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Cannondale",
+        "stop_ids": [
+          "161"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Branchville",
+        "stop_ids": [
+          "162"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Redding",
+        "stop_ids": [
+          "163"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Bethel",
+        "stop_ids": [
+          "164"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      },
+      {
+        "name": "Danbury",
+        "stop_ids": [
+          "165"
+        ],
+        "route_ids": [
+          "5"
+        ]
+      }
+    ],
+    "Harlem": [
+      {
+        "name": "Grand Central",
+        "stop_ids": [
+          "1"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Harlem-125 St",
+        "stop_ids": [
+          "4"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Melrose",
+        "stop_ids": [
+          "54"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Tremont",
+        "stop_ids": [
+          "55"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Fordham",
+        "stop_ids": [
+          "56"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Botanical Garden",
+        "stop_ids": [
+          "57"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Williams Bridge",
+        "stop_ids": [
+          "58"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Woodlawn",
+        "stop_ids": [
+          "59"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Wakefield",
+        "stop_ids": [
+          "61"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Mt Vernon West",
+        "stop_ids": [
+          "62"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Fleetwood",
+        "stop_ids": [
+          "64"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Bronxville",
+        "stop_ids": [
+          "65"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Tuckahoe",
+        "stop_ids": [
+          "66"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Crestwood",
+        "stop_ids": [
+          "68"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Scarsdale",
+        "stop_ids": [
+          "71"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Hartsdale",
+        "stop_ids": [
+          "72"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "White Plains",
+        "stop_ids": [
+          "74"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "North White Plains",
+        "stop_ids": [
+          "76"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Valhalla",
+        "stop_ids": [
+          "78"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Hawthorne",
+        "stop_ids": [
+          "80"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Pleasantville",
+        "stop_ids": [
+          "81"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Chappaqua",
+        "stop_ids": [
+          "83"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Mt Kisco",
+        "stop_ids": [
+          "84"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Bedford Hills",
+        "stop_ids": [
+          "85"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Katonah",
+        "stop_ids": [
+          "86"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Goldens Bridge",
+        "stop_ids": [
+          "88"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Purdy's",
+        "stop_ids": [
+          "89"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Croton Falls",
+        "stop_ids": [
+          "90"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Brewster",
+        "stop_ids": [
+          "91"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      },
+      {
+        "name": "Southeast",
+        "stop_ids": [
+          "94"
+        ],
+        "route_ids": [
+          "2"
+        ]
+      }
+    ],
+    "Hudson": [
+      {
+        "name": "Croton-Harmon",
+        "stop_ids": [
+          "33"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Ossining",
+        "stop_ids": [
+          "31"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Scarborough",
+        "stop_ids": [
+          "30"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Philipse Manor",
+        "stop_ids": [
+          "29"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Tarrytown",
+        "stop_ids": [
+          "27"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Irvington",
+        "stop_ids": [
+          "25"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Ardsley-on-Hudson",
+        "stop_ids": [
+          "24"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Dobbs Ferry",
+        "stop_ids": [
+          "23"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Hastings-on-Hudson",
+        "stop_ids": [
+          "22"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Greystone",
+        "stop_ids": [
+          "20"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Glenwood",
+        "stop_ids": [
+          "19"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Yonkers",
+        "stop_ids": [
+          "18"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Ludlow",
+        "stop_ids": [
+          "17"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Riverdale",
+        "stop_ids": [
+          "16"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Spuyten Duyvil",
+        "stop_ids": [
+          "14"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Marble Hill",
+        "stop_ids": [
+          "11"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "University Heights",
+        "stop_ids": [
+          "10"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Morris Heights",
+        "stop_ids": [
+          "9"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Highbridge Yard",
+        "stop_ids": [
+          "184"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Yankees-E 153 St",
+        "stop_ids": [
+          "622"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Harlem-125 St",
+        "stop_ids": [
+          "4"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      },
+      {
+        "name": "Grand Central",
+        "stop_ids": [
+          "1"
+        ],
+        "route_ids": [
+          "1"
+        ]
+      }
+    ],
+    "New Canaan": [
+      {
+        "name": "Grand Central",
+        "stop_ids": [
+          "1"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Harlem-125 St",
+        "stop_ids": [
+          "4"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Fordham",
+        "stop_ids": [
+          "56"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Mt Vernon East",
+        "stop_ids": [
+          "105"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Pelham",
+        "stop_ids": [
+          "106"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "New Rochelle",
+        "stop_ids": [
+          "108"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Larchmont",
+        "stop_ids": [
+          "110"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Mamaroneck",
+        "stop_ids": [
+          "111"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Harrison",
+        "stop_ids": [
+          "112"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Rye",
+        "stop_ids": [
+          "114"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Port Chester",
+        "stop_ids": [
+          "115"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Greenwich",
+        "stop_ids": [
+          "116"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Cos Cob",
+        "stop_ids": [
+          "118"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Riverside",
+        "stop_ids": [
+          "120"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Old Greenwich",
+        "stop_ids": [
+          "121"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Stamford",
+        "stop_ids": [
+          "124"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Glenbrook",
+        "stop_ids": [
+          "153"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Springdale",
+        "stop_ids": [
+          "154"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "Talmadge Hill",
+        "stop_ids": [
+          "155"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      },
+      {
+        "name": "New Canaan",
+        "stop_ids": [
+          "157"
+        ],
+        "route_ids": [
+          "4"
+        ]
+      }
+    ],
+    "New Haven": [
+      {
+        "name": "Grand Central",
+        "stop_ids": [
+          "1"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Harlem-125 St",
+        "stop_ids": [
+          "4"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Fordham",
+        "stop_ids": [
+          "56"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Mt Vernon East",
+        "stop_ids": [
+          "105"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Pelham",
+        "stop_ids": [
+          "106"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "New Rochelle",
+        "stop_ids": [
+          "108"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Larchmont",
+        "stop_ids": [
+          "110"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Mamaroneck",
+        "stop_ids": [
+          "111"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Harrison",
+        "stop_ids": [
+          "112"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Rye",
+        "stop_ids": [
+          "114"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Port Chester",
+        "stop_ids": [
+          "115"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Greenwich",
+        "stop_ids": [
+          "116"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Cos Cob",
+        "stop_ids": [
+          "118"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Riverside",
+        "stop_ids": [
+          "120"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Old Greenwich",
+        "stop_ids": [
+          "121"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Stamford",
+        "stop_ids": [
+          "124"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Noroton Heights",
+        "stop_ids": [
+          "127"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Darien",
+        "stop_ids": [
+          "128"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Rowayton",
+        "stop_ids": [
+          "129"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "South Norwalk",
+        "stop_ids": [
+          "131"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "East Norwalk",
+        "stop_ids": [
+          "133"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Westport",
+        "stop_ids": [
+          "134"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Green's Farms",
+        "stop_ids": [
+          "136"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Southport",
+        "stop_ids": [
+          "137"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Fairfield",
+        "stop_ids": [
+          "138"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Fairfield-Black Rock",
+        "stop_ids": [
+          "188"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Bridgeport",
+        "stop_ids": [
+          "140"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Stratford",
+        "stop_ids": [
+          "143"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "Milford",
+        "stop_ids": [
+          "145"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "West Haven",
+        "stop_ids": [
+          "190"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      },
+      {
+        "name": "New Haven",
+        "stop_ids": [
+          "149"
+        ],
+        "route_ids": [
+          "3"
+        ]
+      }
+    ],
+    "Waterbury": [
+      {
+        "name": "Bridgeport",
+        "stop_ids": [
+          "140"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Stratford",
+        "stop_ids": [
+          "143"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Derby-Shelton",
+        "stop_ids": [
+          "167"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Ansonia",
+        "stop_ids": [
+          "168"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Seymour",
+        "stop_ids": [
+          "169"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Beacon Falls",
+        "stop_ids": [
+          "170"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Naugatuck",
+        "stop_ids": [
+          "171"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      },
+      {
+        "name": "Waterbury",
+        "stop_ids": [
+          "172"
+        ],
+        "route_ids": [
+          "6"
+        ]
+      }
+    ]
   }
 }

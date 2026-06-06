@@ -145,8 +145,8 @@ def service_alerts():
     mode = (request.args.get("mode") or "").strip().lower() or None
     line = (request.args.get("line") or "").strip() or None
     limit = min(30, max(1, request.args.get("limit", 12, type=int)))
-    if mode and mode not in {"subway", "bus"}:
-        return jsonify({"error": "Please choose subway or bus."}), 400
+    if mode and mode not in get_transit_options():
+        return jsonify({"error": "Please choose a valid transit mode."}), 400
 
     return jsonify(get_service_alerts(mode=mode, line=line, limit=limit))
 

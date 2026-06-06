@@ -18,11 +18,13 @@ export type PaymentMethod = {
   created_at: string;
 };
 
+export type TransitMode = "subway" | "bus" | "lirr" | "metro_north";
+
 export type Ride = {
   id: number;
   payment_method_id: number;
   payment_method_label: string;
-  transit_mode: string;
+  transit_mode: TransitMode;
   transit_line: string;
   entry_stop: string;
   exit_stop: string;
@@ -35,13 +37,10 @@ export type Ride = {
   transfer_target_mode: string | null;
 };
 
-export type TransitOptions = {
-  subway: Record<string, string[]>;
-  bus: Record<string, string[]>;
-};
+export type TransitOptions = Record<TransitMode, Record<string, string[]>>;
 
 export type RouteSummary = {
-  transit_mode: "subway" | "bus";
+  transit_mode: TransitMode;
   line: string;
   stop_count: number;
   ride_count: number;
@@ -49,7 +48,7 @@ export type RouteSummary = {
 };
 
 export type Arrival = {
-  transit_mode: "subway" | "bus";
+  transit_mode: TransitMode;
   line: string;
   route_id: string;
   stop: string;
@@ -70,7 +69,7 @@ export type ArrivalResponse = {
 
 export type ServiceAlert = {
   id: string;
-  transit_mode: "subway" | "bus";
+  transit_mode: TransitMode;
   line: string | null;
   route_ids: string[];
   title: string;
@@ -91,7 +90,7 @@ export type ServiceAlertResponse = {
 };
 
 export type FrequentRoute = {
-  transit_mode: "subway" | "bus";
+  transit_mode: TransitMode;
   line: string;
   entry_stop: string;
   exit_stop: string;
@@ -104,7 +103,7 @@ export type FrequentRoute = {
 
 export type PersonalizedNotification = {
   id: string;
-  transit_mode: "subway" | "bus";
+  transit_mode: TransitMode;
   line: string;
   entry_stop: string;
   title: string;
@@ -119,7 +118,7 @@ export type PersonalizedAlerts = {
 
 export type NotificationPreference = {
   id: number;
-  transit_mode: "subway" | "bus";
+  transit_mode: TransitMode;
   transit_line: string;
   entry_stop: string;
   enabled: boolean;

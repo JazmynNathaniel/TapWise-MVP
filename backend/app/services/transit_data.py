@@ -15,6 +15,12 @@ FALLBACK_OPTIONS = {
     "bus": {
         "M15-SBS": ["South Ferry Terminal", "14 St", "34 St", "125 St"],
     },
+    "lirr": {
+        "Babylon Branch": ["Penn Station", "Jamaica", "Babylon"],
+    },
+    "metro_north": {
+        "Hudson Line": ["Grand Central", "Harlem-125 St", "Croton-Harmon"],
+    },
 }
 FALLBACK_METADATA = {
     mode: {

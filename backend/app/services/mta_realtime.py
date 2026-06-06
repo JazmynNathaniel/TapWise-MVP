@@ -20,6 +20,14 @@ MTA_GTFS_RT_BASE = "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds"
 SUBWAY_ALERTS_FEED = f"{MTA_GTFS_RT_BASE}/camsys%2Fsubway-alerts"
 BUS_TRIP_UPDATES_FEED = "https://gtfsrt.prod.obanyc.com/tripUpdates"
 BUS_ALERTS_FEED = "https://gtfsrt.prod.obanyc.com/alerts"
+RAILROAD_TRIP_UPDATE_FEEDS = {
+    "lirr": f"{MTA_GTFS_RT_BASE}/lirr%2Fgtfs-lirr",
+    "metro_north": f"{MTA_GTFS_RT_BASE}/mnr%2Fgtfs-mnr",
+}
+RAILROAD_ALERT_FEEDS = {
+    "lirr": f"{MTA_GTFS_RT_BASE}/camsys%2Flirr-alerts",
+    "metro_north": f"{MTA_GTFS_RT_BASE}/camsys%2Fmnr-alerts",
+}
 CACHE_SECONDS = 30
 LIVE_UPDATES_UNAVAILABLE = "Live updates are taking a moment. Please check again soon."
 ARRIVALS_UNAVAILABLE = "Live arrivals are taking a moment. Please check again soon."
@@ -280,6 +288,8 @@ def get_next_arrivals(
                 arrivals=[],
             )
         feed_urls = [feed_url]
+    elif mode in RAILROAD_TRIP_UPDATE_FEEDS:
+        feed_urls = [RAILROAD_TRIP_UPDATE_FEEDS[mode]]
     else:
         feed_urls = _subway_feed_urls(line, route_ids)
 
@@ -428,7 +438,7 @@ def get_service_alerts(
     line: str | None = None,
     limit: int = 12,
 ) -> dict:
-    modes = [mode] if mode else ["subway", "bus"]
+    modes = [mode] if mode else ["subway", "bus", *RAILROAD_ALERT_FEEDS]
     alerts: list[dict] = []
     messages = []
 
@@ -439,6 +449,8 @@ def get_service_alerts(
             if not feed_url:
                 messages.append("Live bus service updates are not connected yet.")
                 continue
+        elif active_mode in RAILROAD_ALERT_FEEDS:
+            feed_url = RAILROAD_ALERT_FEEDS[active_mode]
         else:
             feed_url = SUBWAY_ALERTS_FEED
 
