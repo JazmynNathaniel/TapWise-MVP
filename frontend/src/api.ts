@@ -12,6 +12,7 @@ import {
   RouteSummary,
   ServiceAlertResponse,
   TransitOptions,
+  TravelTimeMode,
   TravelStatus
 } from "./types";
 
@@ -179,6 +180,7 @@ export const api = {
     line: string,
     origin: string,
     destination: string,
+    timeMode: TravelTimeMode,
     timestamp?: string
   ) {
     const query = new URLSearchParams({
@@ -186,6 +188,7 @@ export const api = {
       line,
       origin,
       destination,
+      time_mode: timeMode,
       limit: "12"
     });
     if (timestamp) {
@@ -197,6 +200,7 @@ export const api = {
     token: string,
     origin: string,
     destination: string,
+    timeMode: TravelTimeMode,
     timestamp?: string,
     mode?: string,
     line?: string,
@@ -205,6 +209,7 @@ export const api = {
     const query = new URLSearchParams({
       origin,
       destination,
+      time_mode: timeMode,
       limit: "4"
     });
     if (timestamp) {

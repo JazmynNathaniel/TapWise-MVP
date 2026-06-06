@@ -15,6 +15,7 @@ import {
   ServiceAlertResponse,
   TransitMode,
   TransitOptions,
+  TravelTimeMode,
   TravelStatus,
   User
 } from "./types";
@@ -305,6 +306,34 @@ function formatArrivalTime(value: string) {
     hour: "numeric",
     minute: "2-digit"
   });
+}
+
+function formatTripTime(value: string | null | undefined) {
+  if (!value) {
+    return "Not available";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Not available";
+  }
+  return date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function formatTravelDuration(minutes: number | null | undefined) {
+  if (typeof minutes !== "number" || !Number.isFinite(minutes) || minutes <= 0) {
+    return "Not available";
+  }
+  if (minutes === 1) {
+    return "1 min";
+  }
+  return `${minutes} min`;
+}
+
+function formatTravelTimeModeLabel(value: TravelTimeMode) {
+  return value === "arrive_by" ? "Arrive by" : "Leave at";
 }
 
 function formatMinutesUntil(minutes: number) {
@@ -837,7 +866,7 @@ function App() {
   const [selectedRouteLine, setSelectedRouteLine] = useState("");
   const [selectedRouteStop, setSelectedRouteStop] = useState("");
   const [selectedRailDestinationStop, setSelectedRailDestinationStop] = useState("");
-  const [travelTimingMode, setTravelTimingMode] = useState<RideTimingMode>("now");
+  const [travelTimingMode, setTravelTimingMode] = useState<TravelTimeMode>("leave_at");
   const [travelDate, setTravelDate] = useState(() => createManualRideDateTime().date);
   const [travelTime, setTravelTime] = useState(() => createManualRideDateTime().time);
   const [arrivalBoard, setArrivalBoard] = useState<ArrivalResponse | null>(null);
@@ -895,7 +924,7 @@ function App() {
     : false;
   const browserSupportNotice = getBrowserSupportNotice();
   const selectedTravelTimestamp =
-    travelTimingMode === "manual" && travelDate && travelTime
+    travelDate && travelTime
       ? new Date(`${travelDate}T${travelTime}`).toISOString()
       : undefined;
 
@@ -1069,6 +1098,7 @@ function App() {
         selectedRouteLine,
         selectedRouteStop,
         selectedRailDestinationStop,
+        travelTimingMode,
         selectedTravelTimestamp
       )
       .then((payload) => {
@@ -1110,6 +1140,13 @@ function App() {
           origin: selectedRouteStop,
           destination: selectedRailDestinationStop,
           timestamp: selectedTravelTimestamp ?? generatedAt,
+          time_mode: travelTimingMode,
+          requested_time: selectedTravelTimestamp ?? generatedAt,
+          departure_search_time: selectedTravelTimestamp ?? generatedAt,
+          estimated_departure_time: null,
+          estimated_arrival_time: null,
+          travel_minutes: 0,
+          arrives_by_requested_time: travelTimingMode === "arrive_by" ? false : null,
           generated_at: generatedAt,
           message: error.message,
           arrivals_status: "unavailable",
@@ -1150,6 +1187,7 @@ function App() {
     selectedRouteMode,
     selectedRouteStop,
     selectedTravelTimestamp,
+    travelTimingMode,
     token
   ]);
 
@@ -1166,6 +1204,7 @@ function App() {
         token,
         selectedRouteStop,
         selectedRailDestinationStop,
+        travelTimingMode,
         selectedTravelTimestamp,
         undefined,
         undefined,
@@ -1192,6 +1231,8 @@ function App() {
           status: "empty",
           generated_at: generatedAt,
           timestamp: selectedTravelTimestamp ?? generatedAt,
+          time_mode: travelTimingMode,
+          requested_time: selectedTravelTimestamp ?? generatedAt,
           origin: selectedRouteStop,
           destination: selectedRailDestinationStop,
           message: error.message,
@@ -1214,6 +1255,7 @@ function App() {
     selectedRouteMode,
     selectedRouteStop,
     selectedTravelTimestamp,
+    travelTimingMode,
     token
   ]);
 
@@ -2447,46 +2489,45 @@ function App() {
               </div>
 
               <div className="travel-time-panel">
-                <div className="mode-toggle compact-toggle">
+                <div className="mode-toggle compact-toggle" aria-label="Travel time planning mode">
                   <button
                     type="button"
-                    className={travelTimingMode === "now" ? "active" : ""}
-                    onClick={() => setTravelTimingMode("now")}
+                    className={travelTimingMode === "leave_at" ? "active" : ""}
+                    onClick={() => setTravelTimingMode("leave_at")}
                   >
-                    Travel now
+                    Leave at
                   </button>
                   <button
                     type="button"
-                    className={travelTimingMode === "manual" ? "active" : ""}
-                    onClick={() => setTravelTimingMode("manual")}
+                    className={travelTimingMode === "arrive_by" ? "active" : ""}
+                    onClick={() => setTravelTimingMode("arrive_by")}
                   >
-                    Choose time
+                    Arrive by
                   </button>
                 </div>
-                {travelTimingMode === "manual" ? (
-                  <div className="manual-time-grid">
-                    <label>
-                      Travel date
-                      <input
-                        type="date"
-                        value={travelDate}
-                        onChange={(event) => setTravelDate(event.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Travel time
-                      <input
-                        type="time"
-                        value={travelTime}
-                        onChange={(event) => setTravelTime(event.target.value)}
-                      />
-                    </label>
-                  </div>
-                ) : (
-                  <p className="muted helper-copy">
-                    Showing arrival, departure, and service status for the current time.
-                  </p>
-                )}
+                <div className="manual-time-grid">
+                  <label>
+                    Travel date
+                    <input
+                      type="date"
+                      value={travelDate}
+                      onChange={(event) => setTravelDate(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    {travelTimingMode === "arrive_by" ? "Arrive by time" : "Leave time"}
+                    <input
+                      type="time"
+                      value={travelTime}
+                      onChange={(event) => setTravelTime(event.target.value)}
+                    />
+                  </label>
+                </div>
+                <p className="muted helper-copy">
+                  {travelTimingMode === "arrive_by"
+                    ? "TapWise will look for the latest departure that can still reach your destination by this time."
+                    : "TapWise will estimate when you should reach your destination from this leave time."}
+                </p>
               </div>
 
               <div
@@ -2523,6 +2564,36 @@ function App() {
                     : travelStatus?.message ??
                       "Choose a route, origin, destination, and travel time to check service."}
                 </p>
+                {travelStatus ? (
+                  <div className="travel-timing-summary" aria-label="Trip timing estimate">
+                    <div>
+                      <span>{formatTravelTimeModeLabel(travelStatus.time_mode)}</span>
+                      <strong>{formatTripTime(travelStatus.requested_time)}</strong>
+                    </div>
+                    <div>
+                      <span>
+                        {travelStatus.time_mode === "arrive_by" ? "Leave" : "Arrive"}
+                      </span>
+                      <strong>
+                        {formatTripTime(
+                          travelStatus.time_mode === "arrive_by"
+                            ? travelStatus.estimated_departure_time
+                            : travelStatus.estimated_arrival_time
+                        )}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Ride time</span>
+                      <strong>{formatTravelDuration(travelStatus.travel_minutes)}</strong>
+                    </div>
+                    {travelStatus.arrives_by_requested_time === false ? (
+                      <div className="timing-warning">
+                        <span>Target</span>
+                        <strong>Not met</strong>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {travelStatus?.blocking_alerts.length ? (
                   <div className="blocking-alert-reason">
                     <strong>{travelStatus.blocking_alerts[0].title}</strong>
@@ -2567,6 +2638,16 @@ function App() {
                           <p>{suggestion.message}</p>
                         </div>
                         <div className="ride-chip-row">
+                          <span className="fare-chip travel-time-chip">
+                            {suggestion.time_mode === "arrive_by"
+                              ? `Leave ${formatTripTime(suggestion.estimated_departure_time)}`
+                              : `Arrive ${formatTripTime(suggestion.estimated_arrival_time)}`}
+                          </span>
+                          {suggestion.arrives_by_requested_time === false ? (
+                            <span className="fare-chip timing-warning-chip">
+                              Misses target
+                            </span>
+                          ) : null}
                           <span className="fare-chip">
                             {suggestion.counts_toward_cap ? "OMNY cap" : "Separate fare"}
                           </span>

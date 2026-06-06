@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
@@ -31,6 +31,7 @@ BLOCKING_ALERT_KEYWORDS = (
 )
 RAIL_MODES = {"lirr", "metro_north"}
 OMNY_MODES = {"subway", "bus"}
+TRAVEL_TIME_MODES = {"leave_at", "arrive_by"}
 
 
 def _user_id() -> int:
@@ -62,6 +63,135 @@ def _parse_timestamp(raw_value: str | None) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _parse_time_mode(raw_value: str | None) -> str:
+    normalized = (raw_value or "leave_at").strip().lower()
+    if normalized in TRAVEL_TIME_MODES:
+        return normalized
+    return "leave_at"
+
+
+def _route_stop_indexes(stops: list[str], origin: str, destination: str) -> tuple[int, int]:
+    return stops.index(origin), stops.index(destination)
+
+
+def _estimated_travel_minutes(mode: str, stop_count: int) -> int:
+    per_stop_minutes = {
+        "subway": 3,
+        "bus": 5,
+        "lirr": 7,
+        "metro_north": 7,
+    }.get(mode, 4)
+    minimum_minutes = {
+        "subway": 5,
+        "bus": 8,
+        "lirr": 12,
+        "metro_north": 12,
+    }.get(mode, 6)
+    return max(minimum_minutes, max(1, stop_count) * per_stop_minutes)
+
+
+def _departure_search_time(
+    *,
+    time_mode: str,
+    requested_time: datetime,
+    travel_minutes: int,
+) -> datetime:
+    if time_mode == "arrive_by":
+        return requested_time - timedelta(minutes=travel_minutes + 90)
+    return requested_time
+
+
+def _arrival_datetime(arrival: dict) -> datetime | None:
+    raw_value = arrival.get("arrival_time")
+    if not raw_value:
+        return None
+    try:
+        return _parse_timestamp(str(raw_value))
+    except ValueError:
+        return None
+
+
+def _arrival_direction_bucket(arrival: dict) -> str:
+    normalized_direction = str(arrival.get("direction") or "").lower()
+    if "north" in normalized_direction or "west" in normalized_direction:
+        return "first"
+    if "south" in normalized_direction or "east" in normalized_direction:
+        return "last"
+    if arrival.get("direction_id") == 1:
+        return "last"
+    return "first"
+
+
+def _target_direction_bucket(origin_index: int, destination_index: int) -> str:
+    return "last" if destination_index > origin_index else "first"
+
+
+def _directional_arrivals(
+    arrivals: list[dict],
+    origin_index: int,
+    destination_index: int,
+) -> list[dict]:
+    target_bucket = _target_direction_bucket(origin_index, destination_index)
+    matching_arrivals = [
+        arrival for arrival in arrivals if _arrival_direction_bucket(arrival) == target_bucket
+    ]
+    return matching_arrivals or arrivals
+
+
+def _build_trip_timing(
+    *,
+    arrivals: list[dict],
+    time_mode: str,
+    requested_time: datetime,
+    travel_minutes: int,
+    origin_index: int,
+    destination_index: int,
+) -> dict:
+    usable_arrivals = _directional_arrivals(arrivals, origin_index, destination_index)
+    selected_departure: datetime | None = None
+    selected_arrival: datetime | None = None
+    arrives_by_requested_time: bool | None = None
+
+    if time_mode == "arrive_by":
+        on_time_options: list[tuple[datetime, datetime]] = []
+        late_options: list[tuple[datetime, datetime]] = []
+        for arrival in usable_arrivals:
+            departure_time = _arrival_datetime(arrival)
+            if departure_time is None:
+                continue
+            estimated_arrival_time = departure_time + timedelta(minutes=travel_minutes)
+            if estimated_arrival_time <= requested_time:
+                on_time_options.append((departure_time, estimated_arrival_time))
+            else:
+                late_options.append((departure_time, estimated_arrival_time))
+
+        if on_time_options:
+            selected_departure, selected_arrival = max(
+                on_time_options, key=lambda option: option[0]
+            )
+            arrives_by_requested_time = True
+        elif late_options:
+            selected_departure, selected_arrival = min(
+                late_options, key=lambda option: option[1]
+            )
+            arrives_by_requested_time = False
+        else:
+            arrives_by_requested_time = False
+    elif usable_arrivals:
+        selected_departure = _arrival_datetime(usable_arrivals[0])
+        if selected_departure is not None:
+            selected_arrival = selected_departure + timedelta(minutes=travel_minutes)
+
+    return {
+        "estimated_departure_time": (
+            selected_departure.isoformat() if selected_departure else None
+        ),
+        "estimated_arrival_time": selected_arrival.isoformat() if selected_arrival else None,
+        "travel_minutes": travel_minutes,
+        "arrives_by_requested_time": arrives_by_requested_time,
+    }
+
+
 def _alert_blocks_service(alert: dict) -> bool:
     effect = (alert.get("effect") or "").upper()
     if effect in BLOCKING_ALERT_EFFECTS:
@@ -77,12 +207,14 @@ def _alert_blocks_service(alert: dict) -> bool:
 def _travel_status_message(
     *,
     service_state: str,
+    time_mode: str,
     origin: str,
     destination: str,
     arrivals_message: str,
     alert_message: str,
     blocking_alerts: list[dict],
     alerts: list[dict],
+    timing: dict,
 ) -> str:
     if service_state == "no_service":
         alert = blocking_alerts[0]
@@ -92,6 +224,16 @@ def _travel_status_message(
             f"because MTA reports this service is not running: {reason}"
         )
     if service_state == "in_service":
+        if time_mode == "arrive_by" and timing.get("arrives_by_requested_time"):
+            return (
+                f"A departure is available from {origin} to {destination} that can "
+                "meet the selected arrive-by time."
+            )
+        if time_mode == "leave_at" and timing.get("estimated_arrival_time"):
+            return (
+                f"A departure is available from {origin} to {destination}; TapWise "
+                "estimated the destination arrival from the selected leave time."
+            )
         return f"Arrival and departure options are available from {origin} to {destination}."
     if service_state == "service_alert":
         return (
@@ -99,6 +241,11 @@ def _travel_status_message(
             f"{'change is' if len(alerts) == 1 else 'changes are'} active for this trip time."
         )
     if service_state == "no_departures":
+        if time_mode == "arrive_by":
+            return (
+                f"No departure was returned early enough to get from {origin} to "
+                f"{destination} by the selected arrive-by time."
+            )
         if alerts:
             return (
                 f"No arrival or departure was returned for {origin} to {destination} "
@@ -123,6 +270,8 @@ def _route_candidate_score(
     service_state: str,
     fare_status: dict | None,
     rail_fare: dict | None,
+    time_mode: str,
+    timing: dict,
 ) -> int:
     score = 0
     if service_state == "in_service":
@@ -151,6 +300,16 @@ def _route_candidate_score(
         if rail_fare.get("estimated_period") == "peak":
             score -= 4
 
+    if time_mode == "arrive_by":
+        if timing.get("arrives_by_requested_time"):
+            score += 24
+        elif timing.get("estimated_departure_time"):
+            score -= 20
+        else:
+            score -= 12
+    elif timing.get("estimated_arrival_time"):
+        score += 10
+
     return score
 
 
@@ -160,6 +319,8 @@ def _route_candidate_reason(
     service_state: str,
     fare_status: dict | None,
     rail_fare: dict | None,
+    time_mode: str,
+    timing: dict,
 ) -> str:
     reasons = []
     if service_state == "no_service":
@@ -172,6 +333,14 @@ def _route_candidate_reason(
         reasons.append("Service is available for the selected time.")
     else:
         reasons.append("Live service information is unavailable right now.")
+
+    if time_mode == "arrive_by":
+        if timing.get("arrives_by_requested_time"):
+            reasons.append("A returned departure can meet your arrive-by time.")
+        else:
+            reasons.append("No returned departure is early enough for your arrive-by time.")
+    elif timing.get("estimated_arrival_time"):
+        reasons.append("TapWise estimated the destination arrival from your selected leave time.")
 
     if mode in OMNY_MODES:
         active_transfer = (fare_status or {}).get("active_transfer") or {}
@@ -318,6 +487,7 @@ def travel_status():
     line = (request.args.get("line") or "").strip()
     origin = (request.args.get("origin") or "").strip()
     destination = (request.args.get("destination") or "").strip()
+    time_mode = _parse_time_mode(request.args.get("time_mode"))
     limit = min(12, max(1, request.args.get("limit", 6, type=int)))
 
     if not mode or not line or not origin or not destination:
@@ -329,6 +499,18 @@ def travel_status():
         travel_time = _parse_timestamp(request.args.get("timestamp"))
     except ValueError:
         return jsonify({"error": "Please choose a valid travel time."}), 400
+
+    route_stops = get_transit_options()[mode][line]
+    origin_index, destination_index = _route_stop_indexes(
+        route_stops, origin, destination
+    )
+    stop_count = abs(destination_index - origin_index)
+    travel_minutes = _estimated_travel_minutes(mode, stop_count)
+    search_time = _departure_search_time(
+        time_mode=time_mode,
+        requested_time=travel_time,
+        travel_minutes=travel_minutes,
+    )
 
     alert_payload = get_service_alerts(
         mode=mode,
@@ -353,7 +535,15 @@ def travel_status():
             line=line,
             stop_name=origin,
             limit=limit,
-            reference_time=travel_time,
+            reference_time=search_time,
+        )
+        timing = _build_trip_timing(
+            arrivals=arrivals_payload.get("arrivals", []),
+            time_mode=time_mode,
+            requested_time=travel_time,
+            travel_minutes=travel_minutes,
+            origin_index=origin_index,
+            destination_index=destination_index,
         )
         if arrivals_payload.get("status") == "ok" and alerts:
             service_state = "service_alert"
@@ -363,15 +553,31 @@ def travel_status():
             service_state = "no_departures"
         else:
             service_state = "unavailable"
+        if (
+            time_mode == "arrive_by"
+            and service_state in {"in_service", "service_alert"}
+            and not timing.get("arrives_by_requested_time")
+        ):
+            service_state = "no_departures"
+
+    if blocking_alerts:
+        timing = {
+            "estimated_departure_time": None,
+            "estimated_arrival_time": None,
+            "travel_minutes": travel_minutes,
+            "arrives_by_requested_time": False if time_mode == "arrive_by" else None,
+        }
 
     message = _travel_status_message(
         service_state=service_state,
+        time_mode=time_mode,
         origin=origin,
         destination=destination,
         arrivals_message=arrivals_payload.get("message", ""),
         alert_message=alert_payload.get("message", ""),
         blocking_alerts=blocking_alerts,
         alerts=alerts,
+        timing=timing,
     )
 
     return jsonify(
@@ -383,6 +589,13 @@ def travel_status():
             "origin": origin,
             "destination": destination,
             "timestamp": travel_time.isoformat(),
+            "time_mode": time_mode,
+            "requested_time": travel_time.isoformat(),
+            "departure_search_time": search_time.isoformat(),
+            "estimated_departure_time": timing.get("estimated_departure_time"),
+            "estimated_arrival_time": timing.get("estimated_arrival_time"),
+            "travel_minutes": timing.get("travel_minutes"),
+            "arrives_by_requested_time": timing.get("arrives_by_requested_time"),
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "message": message,
             "arrivals_status": arrivals_payload.get("status", "unavailable"),
@@ -404,6 +617,7 @@ def route_suggestions():
     destination = (request.args.get("destination") or "").strip()
     preferred_mode = (request.args.get("mode") or "").strip().lower()
     preferred_line = (request.args.get("line") or "").strip()
+    time_mode = _parse_time_mode(request.args.get("time_mode"))
     payment_method_id = request.args.get("payment_method_id", type=int)
     limit = min(6, max(1, request.args.get("limit", 4, type=int)))
 
@@ -438,6 +652,16 @@ def route_suggestions():
             if origin not in stops or destination not in stops or origin == destination:
                 continue
 
+            origin_index, destination_index = _route_stop_indexes(
+                stops, origin, destination
+            )
+            stop_count = abs(destination_index - origin_index)
+            travel_minutes = _estimated_travel_minutes(mode, stop_count)
+            search_time = _departure_search_time(
+                time_mode=time_mode,
+                requested_time=travel_time,
+                travel_minutes=travel_minutes,
+            )
             alert_payload = get_service_alerts(
                 mode=mode,
                 line=line,
@@ -455,10 +679,18 @@ def route_suggestions():
                     mode=mode,
                     line=line,
                     stop_name=origin,
-                    limit=3,
-                    reference_time=travel_time,
+                    limit=12 if time_mode == "arrive_by" else 3,
+                    reference_time=search_time,
                 )
                 arrivals = arrival_payload.get("arrivals", [])
+                timing = _build_trip_timing(
+                    arrivals=arrivals,
+                    time_mode=time_mode,
+                    requested_time=travel_time,
+                    travel_minutes=travel_minutes,
+                    origin_index=origin_index,
+                    destination_index=destination_index,
+                )
                 if arrival_payload.get("status") == "ok" and alerts:
                     service_state = "service_alert"
                 elif arrival_payload.get("status") == "ok":
@@ -467,6 +699,20 @@ def route_suggestions():
                     service_state = "no_departures"
                 else:
                     service_state = "unavailable"
+                if (
+                    time_mode == "arrive_by"
+                    and service_state in {"in_service", "service_alert"}
+                    and not timing.get("arrives_by_requested_time")
+                ):
+                    service_state = "no_departures"
+
+            if blocking_alerts:
+                timing = {
+                    "estimated_departure_time": None,
+                    "estimated_arrival_time": None,
+                    "travel_minutes": travel_minutes,
+                    "arrives_by_requested_time": False if time_mode == "arrive_by" else None,
+                }
 
             rail_fare = estimate_rail_fare(mode, line, origin, destination, travel_time)
             score = _route_candidate_score(
@@ -474,8 +720,9 @@ def route_suggestions():
                 service_state=service_state,
                 fare_status=fare_status,
                 rail_fare=rail_fare,
+                time_mode=time_mode,
+                timing=timing,
             )
-            stop_count = abs(stops.index(destination) - stops.index(origin))
             if stop_count <= 4:
                 score += 6
             elif stop_count <= 10:
@@ -490,11 +737,20 @@ def route_suggestions():
                     "service_state": service_state,
                     "score": score,
                     "stop_count": stop_count,
+                    "time_mode": time_mode,
+                    "requested_time": travel_time.isoformat(),
+                    "departure_search_time": search_time.isoformat(),
+                    "estimated_departure_time": timing.get("estimated_departure_time"),
+                    "estimated_arrival_time": timing.get("estimated_arrival_time"),
+                    "travel_minutes": timing.get("travel_minutes"),
+                    "arrives_by_requested_time": timing.get("arrives_by_requested_time"),
                     "message": _route_candidate_reason(
                         mode=mode,
                         service_state=service_state,
                         fare_status=fare_status,
                         rail_fare=rail_fare,
+                        time_mode=time_mode,
+                        timing=timing,
                     ),
                     "next_arrivals": arrivals,
                     "alerts": alerts,
@@ -530,6 +786,8 @@ def route_suggestions():
             "status": "ok" if candidates else "empty",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "timestamp": travel_time.isoformat(),
+            "time_mode": time_mode,
+            "requested_time": travel_time.isoformat(),
             "origin": origin,
             "destination": destination,
             "message": message,

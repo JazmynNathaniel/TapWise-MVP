@@ -19,6 +19,7 @@ export type PaymentMethod = {
 };
 
 export type TransitMode = "subway" | "bus" | "lirr" | "metro_north";
+export type TravelTimeMode = "leave_at" | "arrive_by";
 
 export type Ride = {
   id: number;
@@ -98,6 +99,13 @@ export type TravelStatus = {
   origin: string;
   destination: string;
   timestamp: string;
+  time_mode: TravelTimeMode;
+  requested_time: string;
+  departure_search_time: string;
+  estimated_departure_time: string | null;
+  estimated_arrival_time: string | null;
+  travel_minutes: number;
+  arrives_by_requested_time: boolean | null;
   generated_at: string;
   message: string;
   arrivals_status: ArrivalResponse["status"];
@@ -117,6 +125,13 @@ export type RouteSuggestion = {
   service_state: TravelStatus["service_state"];
   score: number;
   stop_count: number;
+  time_mode: TravelTimeMode;
+  requested_time: string;
+  departure_search_time: string;
+  estimated_departure_time: string | null;
+  estimated_arrival_time: string | null;
+  travel_minutes: number;
+  arrives_by_requested_time: boolean | null;
   message: string;
   next_arrivals: Arrival[];
   alerts: ServiceAlert[];
@@ -129,6 +144,8 @@ export type RouteSuggestionResponse = {
   status: "ok" | "empty";
   generated_at: string;
   timestamp: string;
+  time_mode: TravelTimeMode;
+  requested_time: string;
   origin: string;
   destination: string;
   message: string;
