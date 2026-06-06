@@ -602,14 +602,6 @@ function validatePassword(value: string) {
   return null;
 }
 
-async function sha256Hex(value: string) {
-  const encoded = new TextEncoder().encode(value);
-  const buffer = await window.crypto.subtle.digest("SHA-256", encoded);
-  return Array.from(new Uint8Array(buffer))
-    .map((item) => item.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 function App() {
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
   const [settings, setSettings] = useState<AppSettings>(() => hydrateStoredSettings());
@@ -1229,18 +1221,10 @@ function App() {
     setPaymentSubmitting(true);
     try {
       setAppError("");
-      const fingerprintSource = [
-        paymentForm.paymentType,
-        paymentForm.label.trim().toUpperCase(),
-        paymentForm.identifierCode
-      ].join("|");
-      const detailsFingerprint = await sha256Hex(fingerprintSource);
-
       const createdMethod = await api.createPaymentMethod(token, {
         label: paymentForm.label.trim(),
         payment_type: paymentForm.paymentType,
-        identifier_code: paymentForm.identifierCode,
-        details_fingerprint: detailsFingerprint
+        identifier_code: paymentForm.identifierCode
       });
 
       setPaymentMethods((current) => [...current, createdMethod]);

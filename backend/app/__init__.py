@@ -117,10 +117,6 @@ def _ensure_payment_method_columns() -> None:
         statements.append(
             "ALTER TABLE payment_methods ADD COLUMN identifier_code VARCHAR(4) NOT NULL DEFAULT '0000'"
         )
-    if "details_fingerprint" not in existing_columns:
-        statements.append(
-            "ALTER TABLE payment_methods ADD COLUMN details_fingerprint VARCHAR(64) NOT NULL DEFAULT ''"
-        )
 
     for statement in statements:
         db.session.execute(text(statement))

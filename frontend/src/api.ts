@@ -30,7 +30,6 @@ type PaymentMethodPayload = {
   label: string;
   payment_type: string;
   identifier_code: string;
-  details_fingerprint: string;
 };
 
 type RidePayload = {

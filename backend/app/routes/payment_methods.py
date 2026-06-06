@@ -50,7 +50,6 @@ def create_payment_method():
     label = (payload.get("label") or "").strip()
     payment_type = (payload.get("payment_type") or "").strip().lower()
     identifier_code = (payload.get("identifier_code") or "").strip()
-    details_fingerprint = (payload.get("details_fingerprint") or "").strip().lower()
 
     if not label:
         return jsonify({"error": "Please enter a payment method name."}), 400
@@ -58,10 +57,6 @@ def create_payment_method():
         return jsonify({"error": "Please choose a payment type."}), 400
     if len(identifier_code) != 4 or not identifier_code.isdigit():
         return jsonify({"error": "Please enter a 4-digit code."}), 400
-    if len(details_fingerprint) != 64 or any(
-        character not in "0123456789abcdef" for character in details_fingerprint
-    ):
-        return jsonify({"error": "Please check your payment method details."}), 400
 
     payment_method = PaymentMethod(
         user_id=user_id,
@@ -69,7 +64,6 @@ def create_payment_method():
         payment_type=payment_type,
         cardholder_name="",
         identifier_code=identifier_code,
-        details_fingerprint=details_fingerprint,
     )
     db.session.add(payment_method)
     db.session.commit()
