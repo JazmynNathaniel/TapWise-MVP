@@ -2391,6 +2391,22 @@ function App() {
 
           <div className="route-board-grid">
             <div className="route-picker">
+              <div className="travel-service-strip" aria-label="Travel services">
+                {TRANSIT_MODE_OPTIONS.map((option) => (
+                  <button
+                    type="button"
+                    key={option.value}
+                    className={
+                      selectedRouteMode === option.value
+                        ? "active"
+                        : ""
+                    }
+                    onClick={() => selectTravelMode(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
               <div className="route-dropdown-grid">
                 <label>
                   {selectedRouteOption.routeLabel}

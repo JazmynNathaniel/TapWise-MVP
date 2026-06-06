@@ -1199,6 +1199,34 @@ p {
   min-width: 0;
 }
 
+.travel-service-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(5, 14, 23, 0.32);
+}
+
+.travel-service-strip button {
+  min-height: 42px;
+  padding: 0.55rem 0.45rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.travel-service-strip button.active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #ffffff;
+}
+
 .compact-form-grid {
   grid-template-columns: minmax(120px, 0.42fr) minmax(180px, 0.58fr);
 }
@@ -2019,6 +2047,21 @@ p {
 
   .travel-menu small {
     display: inline;
+  }
+
+  .travel-service-strip {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .travel-service-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .travel-service-strip button {
+    flex: 0 0 auto;
+    min-width: 92px;
   }
 
   .direction-card-grid {
