@@ -26,6 +26,11 @@ class User(db.Model):
         cascade="all, delete-orphan",
     )
 
+    def __init__(self, email: str, username: str, password_hash: str) -> None:
+        self.email = email
+        self.username = username
+        self.password_hash = password_hash
+
 
 class PaymentMethod(db.Model):
     __tablename__ = "payment_methods"
@@ -48,6 +53,20 @@ class PaymentMethod(db.Model):
         order_by="Ride.timestamp.asc()",
     )
 
+    def __init__(
+        self,
+        user_id: int,
+        label: str,
+        payment_type: str = "other",
+        cardholder_name: str = "",
+        identifier_code: str = "0000",
+    ) -> None:
+        self.user_id = user_id
+        self.label = label
+        self.payment_type = payment_type
+        self.cardholder_name = cardholder_name
+        self.identifier_code = identifier_code
+
 
 class Ride(db.Model):
     __tablename__ = "rides"
@@ -68,6 +87,24 @@ class Ride(db.Model):
 
     user = db.relationship("User", back_populates="rides")
     payment_method = db.relationship("PaymentMethod", back_populates="rides")
+
+    def __init__(
+        self,
+        user_id: int,
+        payment_method_id: int,
+        transit_mode: str,
+        transit_line: str,
+        entry_stop: str,
+        exit_stop: str,
+        timestamp: datetime,
+    ) -> None:
+        self.user_id = user_id
+        self.payment_method_id = payment_method_id
+        self.transit_mode = transit_mode
+        self.transit_line = transit_line
+        self.entry_stop = entry_stop
+        self.exit_stop = exit_stop
+        self.timestamp = timestamp
 
 
 class RouteNotificationPreference(db.Model):
@@ -99,6 +136,20 @@ class RouteNotificationPreference(db.Model):
 
     user = db.relationship("User", back_populates="route_notification_preferences")
 
+    def __init__(
+        self,
+        user_id: int,
+        transit_mode: str,
+        transit_line: str,
+        entry_stop: str = "",
+        enabled: bool = True,
+    ) -> None:
+        self.user_id = user_id
+        self.transit_mode = transit_mode
+        self.transit_line = transit_line
+        self.entry_stop = entry_stop
+        self.enabled = enabled
+
 
 class TokenBlocklist(db.Model):
     __tablename__ = "token_blocklist"
@@ -109,3 +160,7 @@ class TokenBlocklist(db.Model):
     created_at = db.Column(
         db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+    def __init__(self, jti: str, expires_at: datetime) -> None:
+        self.jti = jti
+        self.expires_at = expires_at

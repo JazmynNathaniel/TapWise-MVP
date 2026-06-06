@@ -7,12 +7,15 @@ import {
   FrequentRoute,
   PaymentMethod,
   PersonalizedAlerts,
+  RailFareEstimate,
   Recommendation,
   Ride,
+  RouteSuggestionResponse,
   RouteSummary,
   ServiceAlertResponse,
   TransitMode,
   TransitOptions,
+  TravelStatus,
   User
 } from "./types";
 
@@ -119,6 +122,67 @@ type ActiveTransferNotice = {
   secondsRemaining: number;
   isSelectedMethod: boolean;
 };
+
+function FareNavIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M5 4.5h14v15H5z" />
+      <path d="M8 8h8" />
+      <path d="M8 12h5" />
+      <path d="M8 16h3" />
+      <path d="M16.5 14.5h.01" />
+    </svg>
+  );
+}
+
+function TravelNavIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M6.5 4.5h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z" />
+      <path d="M6.5 8h9" />
+      <path d="M8 18l-1.5 1.5" />
+      <path d="M14 18l1.5 1.5" />
+      <path d="M8 12h.01" />
+      <path d="M12 12h.01" />
+      <path d="M16.5 9.5h1.8a1.7 1.7 0 0 1 1.7 1.7v4.3h-4" />
+      <path d="M18 15.5v2" />
+      <path d="M20 15.5v2" />
+    </svg>
+  );
+}
+
+function PayNavIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4 6.5h16v11H4z" />
+      <path d="M4 10h16" />
+      <path d="M7 14.5h4" />
+      <path d="M15.5 14.5h2" />
+    </svg>
+  );
+}
+
+function RidesNavIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M5 6h4" />
+      <path d="M5 12h4" />
+      <path d="M5 18h4" />
+      <path d="M12 6h7" />
+      <path d="M12 12h7" />
+      <path d="M12 18h7" />
+    </svg>
+  );
+}
+
+function SettingsNavIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" />
+      <path d="M19 12a7.4 7.4 0 0 0-.12-1.3l2-1.55-2-3.46-2.38.96a7.8 7.8 0 0 0-2.25-1.3L13.9 3h-4l-.35 2.35a7.8 7.8 0 0 0-2.25 1.3l-2.38-.96-2 3.46 2 1.55a7.4 7.4 0 0 0 0 2.6l-2 1.55 2 3.46 2.38-.96a7.8 7.8 0 0 0 2.25 1.3L9.9 21h4l.35-2.35a7.8 7.8 0 0 0 2.25-1.3l2.38.96 2-3.46-2-1.55c.08-.42.12-.85.12-1.3z" />
+    </svg>
+  );
+}
 
 function getFrequentRouteKey(route: Pick<FrequentRoute, "transit_mode" | "line" | "entry_stop">) {
   return [route.transit_mode, route.line, route.entry_stop].join(":");
@@ -374,6 +438,40 @@ function formatPaymentType(value: string) {
   return getPaymentTypeLabel(value).toUpperCase();
 }
 
+function isRailTransitMode(value: TransitMode | string | null | undefined) {
+  return value === "lirr" || value === "metro_north";
+}
+
+function formatCurrency(value: number | null | undefined) {
+  if (typeof value !== "number") {
+    return "Not available";
+  }
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD"
+  }).format(value);
+}
+
+function formatRailPeriodLabel(value: RailFareEstimate["estimated_period"]) {
+  if (value === "peak") {
+    return "Peak";
+  }
+  if (value === "off_peak") {
+    return "Off-peak";
+  }
+  if (value === "intermediate") {
+    return "Intermediate";
+  }
+  return "Estimate";
+}
+
+function formatRailFareSummary(fare: RailFareEstimate | null | undefined) {
+  if (!fare || fare.status !== "ok") {
+    return "Rail fare unavailable";
+  }
+  return `${formatRailPeriodLabel(fare.estimated_period)} ${formatCurrency(fare.estimated_price)}`;
+}
+
 function formatTransitLabel(value: string | null) {
   if (value === "subway" || value === "lirr" || value === "metro_north") {
     return "train";
@@ -382,6 +480,20 @@ function formatTransitLabel(value: string | null) {
     return "bus";
   }
   return "ride";
+}
+
+function getRideFareChipLabel(ride: Ride) {
+  if (ride.is_transfer) {
+    return "Free transfer used";
+  }
+  return ride.counts_toward_cap ? "Cap ride" : "Separate fare";
+}
+
+function getRideFareChipClass(ride: Ride) {
+  if (ride.is_transfer) {
+    return "fare-chip transfer-chip";
+  }
+  return ride.counts_toward_cap ? "fare-chip" : "fare-chip separate-fare-chip";
 }
 
 function formatCountdown(totalSeconds: number) {
@@ -724,10 +836,24 @@ function App() {
   const [selectedRouteMode, setSelectedRouteMode] = useState<TransitMode>("subway");
   const [selectedRouteLine, setSelectedRouteLine] = useState("");
   const [selectedRouteStop, setSelectedRouteStop] = useState("");
+  const [selectedRailDestinationStop, setSelectedRailDestinationStop] = useState("");
+  const [travelTimingMode, setTravelTimingMode] = useState<RideTimingMode>("now");
+  const [travelDate, setTravelDate] = useState(() => createManualRideDateTime().date);
+  const [travelTime, setTravelTime] = useState(() => createManualRideDateTime().time);
   const [arrivalBoard, setArrivalBoard] = useState<ArrivalResponse | null>(null);
   const [arrivalLoading, setArrivalLoading] = useState(false);
   const [selectedRouteAlerts, setSelectedRouteAlerts] = useState<ServiceAlertResponse | null>(null);
   const [selectedRouteAlertsLoading, setSelectedRouteAlertsLoading] = useState(false);
+  const [travelStatus, setTravelStatus] = useState<TravelStatus | null>(null);
+  const [travelStatusLoading, setTravelStatusLoading] = useState(false);
+  const [routeSuggestions, setRouteSuggestions] = useState<RouteSuggestionResponse | null>(null);
+  const [routeSuggestionsLoading, setRouteSuggestionsLoading] = useState(false);
+  const [selectedRailFare, setSelectedRailFare] = useState<RailFareEstimate | null>(null);
+  const [selectedRailFareLoading, setSelectedRailFareLoading] = useState(false);
+  const [rideRailFare, setRideRailFare] = useState<RailFareEstimate | null>(null);
+  const [rideRailFareLoading, setRideRailFareLoading] = useState(false);
+  const [travelMenuOpen, setTravelMenuOpen] = useState(false);
+  const [mtaMenuOpen, setMtaMenuOpen] = useState(false);
   const [notificationUpdatingKey, setNotificationUpdatingKey] = useState("");
   const [rideTimingMode, setRideTimingMode] = useState<RideTimingMode>("now");
   const [manualRideDate, setManualRideDate] = useState(() => createManualRideDateTime().date);
@@ -755,6 +881,7 @@ function App() {
   );
   const lastTransferReminderKey = useRef<string | null>(null);
   const lastActiveTransferKey = useRef<string | null>(null);
+  const travelMenuRef = useRef<HTMLDivElement | null>(null);
   const activeTransferNotice = getActiveTransferNotice(
     recommendation,
     selectedMethodId,
@@ -767,6 +894,10 @@ function App() {
     ? silencedTransferKeys.has(activeTransferKey)
     : false;
   const browserSupportNotice = getBrowserSupportNotice();
+  const selectedTravelTimestamp =
+    travelTimingMode === "manual" && travelDate && travelTime
+      ? new Date(`${travelDate}T${travelTime}`).toISOString()
+      : undefined;
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -809,6 +940,26 @@ function App() {
       })
       .catch((error: Error) => setAppError(error.message));
   }, [token]);
+
+  useEffect(() => {
+    if (!travelMenuOpen) {
+      return undefined;
+    }
+
+    function handleDocumentPointerDown(event: MouseEvent) {
+      if (
+        travelMenuRef.current &&
+        event.target instanceof Node &&
+        !travelMenuRef.current.contains(event.target)
+      ) {
+        setTravelMenuOpen(false);
+        setMtaMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleDocumentPointerDown);
+    return () => document.removeEventListener("mousedown", handleDocumentPointerDown);
+  }, [travelMenuOpen]);
 
   useEffect(() => {
     if (!transitOptions) {
@@ -880,60 +1031,149 @@ function App() {
   }, [selectedRouteLine, selectedRouteMode, transitOptions]);
 
   useEffect(() => {
-    if (!token || !selectedRouteLine || !selectedRouteStop) {
+    if (!transitOptions || !selectedRouteLine) {
+      setSelectedRailDestinationStop("");
+      return;
+    }
+
+    const stops = transitOptions[selectedRouteMode]?.[selectedRouteLine] ?? [];
+    setSelectedRailDestinationStop((current) => {
+      if (current && current !== selectedRouteStop && stops.includes(current)) {
+        return current;
+      }
+      return stops.find((stop) => stop !== selectedRouteStop) ?? "";
+    });
+  }, [selectedRouteLine, selectedRouteMode, selectedRouteStop, transitOptions]);
+
+  useEffect(() => {
+    if (
+      !token ||
+      !selectedRouteLine ||
+      !selectedRouteStop ||
+      !selectedRailDestinationStop
+    ) {
+      setTravelStatus(null);
       setArrivalBoard(null);
+      setSelectedRouteAlerts(null);
       return;
     }
 
     let cancelled = false;
+    setTravelStatusLoading(true);
     setArrivalLoading(true);
+    setSelectedRouteAlertsLoading(true);
     void api
-      .getArrivals(token, selectedRouteMode, selectedRouteLine, selectedRouteStop)
+      .getTravelStatus(
+        token,
+        selectedRouteMode,
+        selectedRouteLine,
+        selectedRouteStop,
+        selectedRailDestinationStop,
+        selectedTravelTimestamp
+      )
       .then((payload) => {
-        if (!cancelled) {
-          setArrivalBoard(payload);
+        if (cancelled) {
+          return;
         }
+
+        setTravelStatus(payload);
+        setArrivalBoard({
+          status: payload.arrivals_status,
+          message: payload.arrivals_message,
+          generated_at: payload.generated_at,
+          arrivals: payload.arrivals
+        });
+        setSelectedRouteAlerts({
+          status: payload.alerts_status,
+          message: payload.alerts_message,
+          generated_at: payload.generated_at,
+          alerts: payload.alerts
+        });
       })
       .catch((error: Error) => {
-        if (!cancelled) {
-          if (error.message === SESSION_ENDED_MESSAGE) {
-            handleLogout();
-            setAuthError(error.message);
-            return;
-          }
-
-          setArrivalBoard({
-            status: "unavailable",
-            message: error.message,
-            generated_at: new Date().toISOString(),
-            arrivals: []
-          });
+        if (cancelled) {
+          return;
         }
+
+        if (error.message === SESSION_ENDED_MESSAGE) {
+          handleLogout();
+          setAuthError(error.message);
+          return;
+        }
+
+        const generatedAt = new Date().toISOString();
+        setTravelStatus({
+          status: "unavailable",
+          service_state: "unavailable",
+          mode: selectedRouteMode,
+          line: selectedRouteLine,
+          origin: selectedRouteStop,
+          destination: selectedRailDestinationStop,
+          timestamp: selectedTravelTimestamp ?? generatedAt,
+          generated_at: generatedAt,
+          message: error.message,
+          arrivals_status: "unavailable",
+          arrivals_message: error.message,
+          arrivals: [],
+          alerts_status: "unavailable",
+          alerts_message: error.message,
+          alerts: [],
+          blocking_alerts: []
+        });
+        setArrivalBoard({
+          status: "unavailable",
+          message: error.message,
+          generated_at: generatedAt,
+          arrivals: []
+        });
+        setSelectedRouteAlerts({
+          status: "unavailable",
+          message: error.message,
+          generated_at: generatedAt,
+          alerts: []
+        });
       })
       .finally(() => {
         if (!cancelled) {
+          setTravelStatusLoading(false);
           setArrivalLoading(false);
+          setSelectedRouteAlertsLoading(false);
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [selectedRouteLine, selectedRouteMode, selectedRouteStop, token]);
+  }, [
+    selectedRailDestinationStop,
+    selectedRouteLine,
+    selectedRouteMode,
+    selectedRouteStop,
+    selectedTravelTimestamp,
+    token
+  ]);
 
   useEffect(() => {
-    if (!token || !selectedRouteLine) {
-      setSelectedRouteAlerts(null);
+    if (!token || !selectedRouteStop || !selectedRailDestinationStop) {
+      setRouteSuggestions(null);
       return;
     }
 
     let cancelled = false;
-    setSelectedRouteAlertsLoading(true);
+    setRouteSuggestionsLoading(true);
     void api
-      .getServiceAlerts(token, selectedRouteMode, selectedRouteLine)
+      .getRouteSuggestions(
+        token,
+        selectedRouteStop,
+        selectedRailDestinationStop,
+        selectedTravelTimestamp,
+        undefined,
+        undefined,
+        selectedMethodId
+      )
       .then((payload) => {
         if (!cancelled) {
-          setSelectedRouteAlerts(payload);
+          setRouteSuggestions(payload);
         }
       })
       .catch((error: Error) => {
@@ -947,23 +1187,195 @@ function App() {
           return;
         }
 
-        setSelectedRouteAlerts({
-          status: "unavailable",
+        const generatedAt = new Date().toISOString();
+        setRouteSuggestions({
+          status: "empty",
+          generated_at: generatedAt,
+          timestamp: selectedTravelTimestamp ?? generatedAt,
+          origin: selectedRouteStop,
+          destination: selectedRailDestinationStop,
           message: error.message,
-          generated_at: new Date().toISOString(),
-          alerts: []
+          fare_status: null,
+          suggestions: []
         });
       })
       .finally(() => {
         if (!cancelled) {
-          setSelectedRouteAlertsLoading(false);
+          setRouteSuggestionsLoading(false);
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [selectedRouteLine, selectedRouteMode, token]);
+  }, [
+    selectedMethodId,
+    selectedRailDestinationStop,
+    selectedRouteMode,
+    selectedRouteStop,
+    selectedTravelTimestamp,
+    token
+  ]);
+
+  useEffect(() => {
+    if (
+      !token ||
+      !isRailTransitMode(selectedRouteMode) ||
+      !selectedRouteLine ||
+      !selectedRouteStop ||
+      !selectedRailDestinationStop
+    ) {
+      setSelectedRailFare(null);
+      return;
+    }
+
+    let cancelled = false;
+    setSelectedRailFareLoading(true);
+    void api
+      .getRailFareEstimate(
+        token,
+        selectedRouteMode,
+        selectedRouteLine,
+        selectedRouteStop,
+        selectedRailDestinationStop,
+        selectedTravelTimestamp
+      )
+      .then((payload) => {
+        if (!cancelled) {
+          setSelectedRailFare(payload);
+        }
+      })
+      .catch((error: Error) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (error.message === SESSION_ENDED_MESSAGE) {
+          handleLogout();
+          setAuthError(error.message);
+          return;
+        }
+
+        setSelectedRailFare({
+          status: "unavailable",
+          mode: selectedRouteMode,
+          line: selectedRouteLine,
+          origin: selectedRouteStop,
+          destination: selectedRailDestinationStop,
+          timestamp: selectedTravelTimestamp ?? new Date().toISOString(),
+          currency: "USD",
+          effective_date: "",
+          message: error.message,
+          origin_zone: null,
+          destination_zone: null,
+          peak_price: null,
+          off_peak_price: null,
+          estimated_price: null,
+          estimated_period: null,
+          source_label: "MTA railroad fares",
+          source_url: "https://www.mta.info/fares-tolls/lirr-metro-north"
+        });
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSelectedRailFareLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    selectedRailDestinationStop,
+    selectedRouteLine,
+    selectedRouteMode,
+    selectedRouteStop,
+    selectedTravelTimestamp,
+    token
+  ]);
+
+  useEffect(() => {
+    if (
+      !token ||
+      !isRailTransitMode(rideForm.transitMode) ||
+      !rideForm.transitLine ||
+      !rideForm.entryStop ||
+      !rideForm.exitStop
+    ) {
+      setRideRailFare(null);
+      return;
+    }
+
+    const timestamp =
+      rideTimingMode === "manual" && manualRideDate && manualRideTime
+        ? new Date(`${manualRideDate}T${manualRideTime}`).toISOString()
+        : undefined;
+    let cancelled = false;
+    setRideRailFareLoading(true);
+    void api
+      .getRailFareEstimate(
+        token,
+        rideForm.transitMode,
+        rideForm.transitLine,
+        rideForm.entryStop,
+        rideForm.exitStop,
+        timestamp
+      )
+      .then((payload) => {
+        if (!cancelled) {
+          setRideRailFare(payload);
+        }
+      })
+      .catch((error: Error) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (error.message === SESSION_ENDED_MESSAGE) {
+          handleLogout();
+          setAuthError(error.message);
+          return;
+        }
+
+        setRideRailFare({
+          status: "unavailable",
+          mode: rideForm.transitMode,
+          line: rideForm.transitLine,
+          origin: rideForm.entryStop,
+          destination: rideForm.exitStop,
+          timestamp: timestamp ?? new Date().toISOString(),
+          currency: "USD",
+          effective_date: "",
+          message: error.message,
+          origin_zone: null,
+          destination_zone: null,
+          peak_price: null,
+          off_peak_price: null,
+          estimated_price: null,
+          estimated_period: null,
+          source_label: "MTA railroad fares",
+          source_url: "https://www.mta.info/fares-tolls/lirr-metro-north"
+        });
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setRideRailFareLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    manualRideDate,
+    manualRideTime,
+    rideForm.entryStop,
+    rideForm.exitStop,
+    rideForm.transitLine,
+    rideForm.transitMode,
+    rideTimingMode,
+    token
+  ]);
 
   useEffect(() => {
     if (!activeTransferNotice) {
@@ -1255,12 +1667,42 @@ function App() {
       }
       if (key === "transitLine") {
         const stops =
-          transitOptions?.[current.transitMode][value as RideFormState["transitLine"]] ?? [];
+          transitOptions?.[current.transitMode]?.[value as RideFormState["transitLine"]] ?? [];
         next.entryStop = stops[0] ?? "";
         next.exitStop = stops[1] ?? stops[0] ?? "";
       }
       return next;
     });
+  }
+
+  function closeTravelMenu() {
+    setTravelMenuOpen(false);
+    setMtaMenuOpen(false);
+  }
+
+  function selectDashboardTab(tab: DashboardTab) {
+    setDashboardTab(tab);
+    if (tab !== "travel") {
+      closeTravelMenu();
+    }
+  }
+
+  function handleTravelTabClick() {
+    setDashboardTab("travel");
+    setTravelMenuOpen((current) => !current);
+    setMtaMenuOpen(false);
+  }
+
+  function selectTravelMode(mode: TransitMode) {
+    setDashboardTab("travel");
+    setSelectedRouteMode(mode);
+    const modeOptions = transitOptions?.[mode] ?? {};
+    const line = Object.keys(modeOptions)[0] ?? "";
+    const stops = line ? modeOptions[line] ?? [] : [];
+    setSelectedRouteLine(line);
+    setSelectedRouteStop(stops[0] ?? "");
+    setSelectedRailDestinationStop(stops[1] ?? stops[0] ?? "");
+    closeTravelMenu();
   }
 
   function selectTravelRoute(mode: TransitMode, line: string) {
@@ -1272,6 +1714,7 @@ function App() {
     setSelectedRouteLine(line);
     const stops = transitOptions?.[mode]?.[line] ?? [];
     setSelectedRouteStop(stops[0] ?? "");
+    setSelectedRailDestinationStop(stops[1] ?? stops[0] ?? "");
   }
 
   async function handleNotificationToggle(route: FrequentRoute) {
@@ -1543,11 +1986,16 @@ function App() {
   const availableStops =
     rideForm.transitLine ? availableModeOptions[rideForm.transitLine] ?? [] : [];
   const routeModeOptions = transitOptions?.[selectedRouteMode] ?? {};
-  const routeOptionGroups = TRANSIT_MODE_OPTIONS.map((option) => ({
-    ...option,
-    lines: Object.keys(transitOptions?.[option.value] ?? {})
-  }));
+  const selectedRouteOption =
+    TRANSIT_MODE_OPTIONS.find((option) => option.value === selectedRouteMode) ??
+    TRANSIT_MODE_OPTIONS[0];
+  const selectedRouteLines = Object.keys(routeModeOptions);
   const routeStops = selectedRouteLine ? routeModeOptions[selectedRouteLine] ?? [] : [];
+  const selectedRouteIsRail = isRailTransitMode(selectedRouteMode);
+  const selectedRailDestinationOptions = routeStops.filter(
+    (stop) => stop !== selectedRouteStop
+  );
+  const rideFormIsRail = isRailTransitMode(rideForm.transitMode);
   const firstRouteStop = routeStops[0] ?? "";
   const lastRouteStop = routeStops[routeStops.length - 1] ?? "";
   const directionCards = getDirectionCards(
@@ -1618,68 +2066,125 @@ function App() {
         </div>
       ) : null}
 
-      <div className="dashboard-tabs" role="tablist" aria-label="Dashboard views">
+      <nav className="dashboard-tabs" aria-label="Dashboard views">
         <button
           type="button"
-          role="tab"
-          aria-selected={dashboardTab === "fare"}
-          className={dashboardTab === "fare" ? "active" : ""}
-          onClick={() => setDashboardTab("fare")}
+          aria-label="Fares"
+          aria-current={dashboardTab === "fare" ? "page" : undefined}
+          className={dashboardTab === "fare" ? "active icon-tab" : "icon-tab"}
+          data-tooltip="Fares"
+          onClick={() => selectDashboardTab("fare")}
         >
-          <span>Fares</span>
+          <span className="nav-icon">
+            <FareNavIcon />
+          </span>
+          <span className="sr-only">Fares</span>
           <small>
             {fareStatus?.free_rides_active ? "Free rides active" : `${ridesRemaining} left`}
           </small>
         </button>
+        <div className="travel-tab-menu" ref={travelMenuRef}>
+          <button
+            type="button"
+            aria-label="Travel"
+            aria-current={dashboardTab === "travel" ? "page" : undefined}
+            aria-haspopup="menu"
+            aria-expanded={travelMenuOpen}
+            aria-controls={travelMenuOpen ? "travel-service-menu" : undefined}
+            className={
+              dashboardTab === "travel"
+                ? "active icon-tab travel-tab-trigger"
+                : "icon-tab travel-tab-trigger"
+            }
+            data-tooltip="Travel"
+            onClick={handleTravelTabClick}
+          >
+            <span className="nav-icon">
+              <TravelNavIcon />
+            </span>
+            <span className="sr-only">Travel</span>
+            <small>
+              {selectedRouteLine
+                ? `${formatModeLabel(selectedRouteMode)} ${selectedRouteLine}`
+                : "Choose service"}
+            </small>
+          </button>
+          {travelMenuOpen ? (
+            <div className="travel-menu" id="travel-service-menu" aria-label="Travel services">
+              <button
+                type="button"
+                className="travel-menu-item parent"
+                aria-haspopup="menu"
+                aria-expanded={mtaMenuOpen}
+                onClick={() => setMtaMenuOpen((current) => !current)}
+              >
+                <span>MTA</span>
+                <small>Subway and bus</small>
+              </button>
+              {mtaMenuOpen ? (
+                <div className="travel-submenu" aria-label="MTA travel services">
+                  <button type="button" onClick={() => selectTravelMode("subway")}>
+                    Subway
+                  </button>
+                  <button type="button" onClick={() => selectTravelMode("bus")}>
+                    Bus
+                  </button>
+                </div>
+              ) : null}
+              <button type="button" onClick={() => selectTravelMode("metro_north")}>
+                <span>METRO NORTH</span>
+                <small>Railroad lines</small>
+              </button>
+              <button type="button" onClick={() => selectTravelMode("lirr")}>
+                <span>LIRR</span>
+                <small>Railroad branches</small>
+              </button>
+            </div>
+          ) : null}
+        </div>
         <button
           type="button"
-          role="tab"
-          aria-selected={dashboardTab === "travel"}
-          className={dashboardTab === "travel" ? "active" : ""}
-          onClick={() => setDashboardTab("travel")}
+          aria-label="Pay"
+          aria-current={dashboardTab === "payments" ? "page" : undefined}
+          className={dashboardTab === "payments" ? "active icon-tab" : "icon-tab"}
+          data-tooltip="Pay"
+          onClick={() => selectDashboardTab("payments")}
         >
-          <span>Travel</span>
-          <small>
-            {selectedRouteLine
-              ? `${formatModeLabel(selectedRouteMode)} ${selectedRouteLine}`
-              : "Routes"}
-          </small>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={dashboardTab === "payments"}
-          className={dashboardTab === "payments" ? "active" : ""}
-          onClick={() => setDashboardTab("payments")}
-        >
-          <span>Pay</span>
+          <span className="nav-icon">
+            <PayNavIcon />
+          </span>
+          <span className="sr-only">Pay</span>
           <small>{paymentMethods.length} saved</small>
         </button>
         <button
           type="button"
-          role="tab"
-          aria-selected={dashboardTab === "rides"}
-          className={dashboardTab === "rides" ? "active" : ""}
-          onClick={() => setDashboardTab("rides")}
+          aria-label="Rides"
+          aria-current={dashboardTab === "rides" ? "page" : undefined}
+          className={dashboardTab === "rides" ? "active icon-tab" : "icon-tab"}
+          data-tooltip="Rides"
+          onClick={() => selectDashboardTab("rides")}
         >
-          <span>Rides</span>
+          <span className="nav-icon">
+            <RidesNavIcon />
+          </span>
+          <span className="sr-only">Rides</span>
           <small>{rides.length} logged</small>
         </button>
         <button
           type="button"
-          role="tab"
           aria-label="Settings"
-          aria-selected={dashboardTab === "settings"}
+          aria-current={dashboardTab === "settings" ? "page" : undefined}
           className={dashboardTab === "settings" ? "active icon-tab" : "icon-tab"}
           data-tooltip="Settings"
-          onClick={() => setDashboardTab("settings")}
+          onClick={() => selectDashboardTab("settings")}
         >
-          <span aria-hidden="true" className="gear-icon">
-            ⚙
+          <span aria-hidden="true" className="nav-icon">
+            <SettingsNavIcon />
           </span>
+          <span className="sr-only">Settings</span>
           <small>Preferences</small>
         </button>
-      </div>
+      </nav>
 
       <section
         className={dashboardTab === "fare" ? "status-strip" : "status-strip hidden-tab-content"}
@@ -1875,7 +2380,7 @@ function App() {
           <div className="panel-header-row">
             <div>
               <p className="panel-label">Route board</p>
-              <h2>All routes and arrivals</h2>
+              <h2>{formatModeLabel(selectedRouteMode)} routes and arrivals</h2>
             </div>
             <span className="selected-method-pill">
               {selectedRouteLine
@@ -1887,24 +2392,22 @@ function App() {
           <div className="route-board-grid">
             <div className="route-picker">
               <div className="route-dropdown-grid">
-                {routeOptionGroups.map((option) => (
-                  <label key={option.value}>
-                    {option.routeLabel}
-                    <select
-                      value={selectedRouteMode === option.value ? selectedRouteLine : ""}
-                      onChange={(event) => selectTravelRoute(option.value, event.target.value)}
-                    >
-                      <option value="">{option.placeholder}</option>
-                      {option.lines.map((line) => (
-                        <option key={line} value={line}>
-                          {line}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ))}
+                <label>
+                  {selectedRouteOption.routeLabel}
+                  <select
+                    value={selectedRouteLine}
+                    onChange={(event) => selectTravelRoute(selectedRouteMode, event.target.value)}
+                  >
+                    <option value="">{selectedRouteOption.placeholder}</option>
+                    {selectedRouteLines.map((line) => (
+                      <option key={line} value={line}>
+                        {line}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label className="route-stop-select">
-                  Stop for selected route
+                  Origin
                   <select
                     value={selectedRouteStop}
                     onChange={(event) => setSelectedRouteStop(event.target.value)}
@@ -1916,21 +2419,229 @@ function App() {
                     ))}
                   </select>
                 </label>
+                <label className="route-stop-select">
+                  Destination
+                  <select
+                    value={selectedRailDestinationStop}
+                    onChange={(event) => setSelectedRailDestinationStop(event.target.value)}
+                  >
+                    {selectedRailDestinationOptions.map((stop) => (
+                      <option key={stop} value={stop}>
+                        {stop}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
+
+              <div className="travel-time-panel">
+                <div className="mode-toggle compact-toggle">
+                  <button
+                    type="button"
+                    className={travelTimingMode === "now" ? "active" : ""}
+                    onClick={() => setTravelTimingMode("now")}
+                  >
+                    Travel now
+                  </button>
+                  <button
+                    type="button"
+                    className={travelTimingMode === "manual" ? "active" : ""}
+                    onClick={() => setTravelTimingMode("manual")}
+                  >
+                    Choose time
+                  </button>
+                </div>
+                {travelTimingMode === "manual" ? (
+                  <div className="manual-time-grid">
+                    <label>
+                      Travel date
+                      <input
+                        type="date"
+                        value={travelDate}
+                        onChange={(event) => setTravelDate(event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Travel time
+                      <input
+                        type="time"
+                        value={travelTime}
+                        onChange={(event) => setTravelTime(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <p className="muted helper-copy">
+                    Showing arrival, departure, and service status for the current time.
+                  </p>
+                )}
+              </div>
+
+              <div
+                className={`travel-status-card ${
+                  travelStatus?.service_state ?? "unavailable"
+                }`}
+                aria-live="polite"
+              >
+                <div>
+                  <div>
+                    <span>
+                      {travelStatusLoading
+                        ? "Checking service"
+                        : travelStatus?.service_state === "no_service"
+                          ? "Service not running"
+                          : travelStatus?.service_state === "no_departures"
+                            ? "No departure returned"
+                            : travelStatus?.service_state === "service_alert"
+                              ? "Service change active"
+                              : travelStatus?.service_state === "in_service"
+                                ? "Service available"
+                                : "Travel status unavailable"}
+                    </span>
+                    <strong>
+                      {selectedRouteStop && selectedRailDestinationStop
+                        ? `${selectedRouteStop} to ${selectedRailDestinationStop}`
+                        : "Choose your trip"}
+                    </strong>
+                  </div>
+                </div>
+                <p>
+                  {travelStatusLoading
+                    ? "Looking for arrivals, departures, and active service changes for the selected trip time."
+                    : travelStatus?.message ??
+                      "Choose a route, origin, destination, and travel time to check service."}
+                </p>
+                {travelStatus?.blocking_alerts.length ? (
+                  <div className="blocking-alert-reason">
+                    <strong>{travelStatus.blocking_alerts[0].title}</strong>
+                    <span>
+                      {travelStatus.blocking_alerts[0].description ||
+                        travelStatus.blocking_alerts[0].effect}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="route-suggestion-board" aria-live="polite">
+                <div className="arrival-board-heading">
+                  <strong>Route suggestions</strong>
+                  <span>{routeSuggestionsLoading ? "Checking" : "Best direct matches"}</span>
+                </div>
+                {routeSuggestionsLoading ? (
+                  <p className="muted">Comparing route, service, and fare-cap context...</p>
+                ) : routeSuggestions?.suggestions.length ? (
+                  <div className="route-suggestion-list">
+                    {routeSuggestions.suggestions.map((suggestion, index) => (
+                      <button
+                        type="button"
+                        className="route-suggestion-card"
+                        key={`${suggestion.mode}:${suggestion.line}`}
+                        onClick={() => selectTravelRoute(suggestion.mode, suggestion.line)}
+                      >
+                        <div>
+                          <span className="route-chip">
+                            {index === 0 ? "Best" : "Option"} -{" "}
+                            {formatModeLabel(suggestion.mode)} {suggestion.line}
+                          </span>
+                          <strong>
+                            {suggestion.service_state === "no_service"
+                              ? "Not running"
+                              : suggestion.service_state === "no_departures"
+                                ? "No departure returned"
+                                : suggestion.service_state === "service_alert"
+                                  ? "Service change active"
+                                  : "Recommended route"}
+                          </strong>
+                          <p>{suggestion.message}</p>
+                        </div>
+                        <div className="ride-chip-row">
+                          <span className="fare-chip">
+                            {suggestion.counts_toward_cap ? "OMNY cap" : "Separate fare"}
+                          </span>
+                          {suggestion.rail_fare ? (
+                            <span className="fare-chip rail-price-chip">
+                              {formatRailFareSummary(suggestion.rail_fare)}
+                            </span>
+                          ) : null}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-state">
+                    {routeSuggestions?.message ??
+                      "Choose an origin and destination to compare direct route options."}
+                  </p>
+                )}
+              </div>
+
+              {selectedRouteIsRail ? (
+                <div className="rail-fare-card" aria-live="polite">
+                  <div className="rail-fare-card-heading">
+                    <div>
+                      <span>One-way railroad ticket</span>
+                      <strong>
+                        {selectedRailFareLoading
+                          ? "Checking fare..."
+                          : formatRailFareSummary(selectedRailFare)}
+                      </strong>
+                    </div>
+                    <span className="fare-chip separate-fare-chip">
+                      Separate ticket
+                    </span>
+                  </div>
+                  {selectedRailFare && selectedRailFare.status === "ok" ? (
+                    <>
+                      <div className="rail-fare-grid">
+                        <div>
+                          <span>Peak</span>
+                          <strong>{formatCurrency(selectedRailFare.peak_price)}</strong>
+                        </div>
+                        <div>
+                          <span>Off-peak</span>
+                          <strong>{formatCurrency(selectedRailFare.off_peak_price)}</strong>
+                        </div>
+                        <div>
+                          <span>Zones</span>
+                          <strong>
+                            {selectedRailFare.origin_zone} to {selectedRailFare.destination_zone}
+                          </strong>
+                        </div>
+                      </div>
+                      <p className="muted helper-copy">
+                        Estimated from MTA zone fares effective {selectedRailFare.effective_date}.
+                        LIRR and Metro-North tickets do not count toward the OMNY weekly cap.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="empty-state">
+                      {selectedRailFare?.message ?? "Choose stations to estimate a ticket price."}
+                    </p>
+                  )}
+                </div>
+              ) : null}
 
               <div className="selected-alert-board" aria-live="polite">
                 <div className="arrival-board-heading">
                   <strong>Delays and service changes</strong>
                   <span>{selectedRouteLine || "Select a route"}</span>
                 </div>
-                {!settings.serviceAlertsEnabled ? (
+                {travelStatus?.service_state === "no_service" ? (
+                  <p className="empty-state">
+                    No separate service-change list is available because this line is
+                    currently reported as not in service for the selected trip time.
+                  </p>
+                ) : !settings.serviceAlertsEnabled ? (
                   <p className="empty-state">
                     Service updates are paused. You can turn them back on in Settings.
                   </p>
                 ) : selectedRouteAlertsLoading ? (
                   <p className="muted">Checking for service updates...</p>
                 ) : null}
-                {settings.serviceAlertsEnabled && !selectedRouteAlertsLoading && selectedRouteAlerts ? (
+                {travelStatus?.service_state !== "no_service" &&
+                settings.serviceAlertsEnabled &&
+                !selectedRouteAlertsLoading &&
+                selectedRouteAlerts ? (
                   selectedRouteAlerts.alerts.length > 0 ? (
                     <div className="selected-alert-list">
                       {selectedRouteAlerts.alerts.map((alert) => (
@@ -1960,8 +2671,15 @@ function App() {
                   </strong>
                   <span>{selectedRouteStop || "Select a stop"}</span>
                 </div>
-                {arrivalLoading ? <p className="muted">Checking live arrivals...</p> : null}
-                {!arrivalLoading && arrivalBoard ? (
+                {travelStatus?.service_state === "no_service" ? (
+                  <p className="empty-state">
+                    No arrival or departure is available for this line at the selected
+                    time because MTA reports it is not in service.
+                  </p>
+                ) : arrivalLoading ? (
+                  <p className="muted">Checking arrivals and departures...</p>
+                ) : null}
+                {travelStatus?.service_state !== "no_service" && !arrivalLoading && arrivalBoard ? (
                   <>
                     {arrivalBoard.arrivals.length > 0 ? (
                       <div className="direction-card-grid">
@@ -2342,6 +3060,47 @@ function App() {
                 </select>
               </label>
             </div>
+            {rideFormIsRail ? (
+              <div className="rail-fare-card compact-rail-fare-card" aria-live="polite">
+                <div className="rail-fare-card-heading">
+                  <div>
+                    <span>Estimated railroad ticket</span>
+                    <strong>
+                      {rideRailFareLoading
+                        ? "Checking fare..."
+                        : formatRailFareSummary(rideRailFare)}
+                    </strong>
+                  </div>
+                  <span className="fare-chip separate-fare-chip">
+                    Not OMNY
+                  </span>
+                </div>
+                {rideRailFare && rideRailFare.status === "ok" ? (
+                  <div className="rail-fare-grid">
+                    <div>
+                      <span>Peak</span>
+                      <strong>{formatCurrency(rideRailFare.peak_price)}</strong>
+                    </div>
+                    <div>
+                      <span>Off-peak</span>
+                      <strong>{formatCurrency(rideRailFare.off_peak_price)}</strong>
+                    </div>
+                    <div>
+                      <span>Likely</span>
+                      <strong>{formatCurrency(rideRailFare.estimated_price)}</strong>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="empty-state">
+                    {rideRailFare?.message ?? "Choose two railroad stations to estimate a ticket."}
+                  </p>
+                )}
+                <p className="muted helper-copy">
+                  Commuter rail uses separate ticketing. This ride will not count toward the
+                  12-ride OMNY weekly fare cap.
+                </p>
+              </div>
+            ) : null}
             <div className="timing-panel">
               <div className="mode-toggle ride-timing-toggle">
                 <button
@@ -2429,9 +3188,14 @@ function App() {
                   <span className="route-chip">
                     {formatModeLabel(ride.transit_mode)} {ride.transit_line}
                   </span>
-                  <span className={ride.is_transfer ? "fare-chip transfer-chip" : "fare-chip"}>
-                    {ride.is_transfer ? "Free transfer used" : "Cap ride"}
+                  <span className={getRideFareChipClass(ride)}>
+                    {getRideFareChipLabel(ride)}
                   </span>
+                  {isRailTransitMode(ride.transit_mode) ? (
+                    <span className="fare-chip rail-price-chip">
+                      {formatRailFareSummary(ride.rail_fare)}
+                    </span>
+                  ) : null}
                 </div>
               </div>
             ))}

@@ -7,7 +7,8 @@ from typing import Iterable, List
 CAP_RIDES = 12
 WINDOW_DAYS = 7
 TRANSFER_WINDOW_HOURS = 2
-TRANSFER_MODES = {"bus", "subway"}
+OMNY_FARE_CAP_MODES = {"bus", "subway"}
+TRANSFER_MODES = OMNY_FARE_CAP_MODES
 
 
 def ensure_utc(value: datetime) -> datetime:
@@ -112,6 +113,10 @@ def _normalize_transit_mode(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
+def is_omny_fare_cap_mode(transit_mode: str | None) -> bool:
+    return _normalize_transit_mode(transit_mode) in OMNY_FARE_CAP_MODES
+
+
 def _transfer_target_mode(transit_mode: str | None) -> str | None:
     mode = _normalize_transit_mode(transit_mode)
     if mode in TRANSFER_MODES:
@@ -168,6 +173,23 @@ def analyze_rides(
     pending_transfer_expires_at: datetime | None = None
 
     for ride in rides:
+        if not is_omny_fare_cap_mode(ride.transit_mode):
+            metadata.append(
+                RideFareMetadata(
+                    id=ride.id,
+                    timestamp=ride.timestamp,
+                    counts_toward_cap=False,
+                    is_transfer=False,
+                    transfer_source_ride_id=None,
+                    transfer_expires_at=None,
+                    transfer_target_mode=None,
+                )
+            )
+            if pending_transfer_expires_at and ride.timestamp > pending_transfer_expires_at:
+                pending_transfer_source = None
+                pending_transfer_expires_at = None
+            continue
+
         transfer_is_valid = (
             pending_transfer_source is not None
             and pending_transfer_expires_at is not None

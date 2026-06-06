@@ -269,6 +269,7 @@ def get_next_arrivals(
     line: str,
     stop_name: str,
     limit: int = 6,
+    reference_time: datetime | None = None,
 ) -> dict:
     route_ids = get_route_ids_for_selection(mode, line)
     stop_ids = set(get_stop_ids_for_selection(mode, line, stop_name))
@@ -301,7 +302,7 @@ def get_next_arrivals(
         )
 
     try:
-        now = _now()
+        now = reference_time or _now()
         arrivals: list[dict] = []
         for feed_url in feed_urls:
             arrivals.extend(
@@ -330,9 +331,9 @@ def get_next_arrivals(
     return _feed_response(
         status="ok" if sorted_arrivals else "empty",
         message=(
-            "Live arrivals are ready."
+            "Arrivals and departures are ready."
             if sorted_arrivals
-            else "No upcoming arrivals to show for this stop right now. Check again in a moment."
+            else "No arrivals or departures were returned for the selected time."
         ),
         arrivals=sorted_arrivals,
     )
@@ -382,24 +383,33 @@ def _alert_active_periods(alert) -> list[dict]:
     return periods
 
 
-def _alert_is_current(alert, now_timestamp: int) -> bool:
+def _alert_is_active_at(alert, reference_timestamp: int) -> bool:
     if not alert.active_period:
         return True
 
     for period in alert.active_period:
-        starts_before_now = not period.start or period.start <= now_timestamp
-        ends_after_now = not period.end or period.end >= now_timestamp
-        if starts_before_now and ends_after_now:
+        starts_before_reference = not period.start or period.start <= reference_timestamp
+        ends_after_reference = not period.end or period.end >= reference_timestamp
+        if starts_before_reference and ends_after_reference:
             return True
     return False
 
 
-def _alerts_from_feed(*, feed, mode: str, line: str | None, route_ids: list[str]) -> list[dict]:
+def _alerts_from_feed(
+    *,
+    feed,
+    mode: str,
+    line: str | None,
+    route_ids: list[str],
+    reference_time: datetime | None = None,
+) -> list[dict]:
     alerts = []
-    now_timestamp = int(time.time())
+    reference_timestamp = int((reference_time or _now()).timestamp())
 
     for entity in feed.entity:
-        if not entity.HasField("alert") or not _alert_is_current(entity.alert, now_timestamp):
+        if not entity.HasField("alert") or not _alert_is_active_at(
+            entity.alert, reference_timestamp
+        ):
             continue
 
         alert = entity.alert
@@ -437,6 +447,7 @@ def get_service_alerts(
     mode: str | None = None,
     line: str | None = None,
     limit: int = 12,
+    reference_time: datetime | None = None,
 ) -> dict:
     modes = [mode] if mode else ["subway", "bus", *RAILROAD_ALERT_FEEDS]
     alerts: list[dict] = []
@@ -461,6 +472,7 @@ def get_service_alerts(
                     mode=active_mode,
                     line=line,
                     route_ids=route_ids,
+                    reference_time=reference_time,
                 )
             )
         except RealtimeUnavailable:

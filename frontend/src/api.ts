@@ -5,11 +5,14 @@ import {
   NotificationPreference,
   PaymentMethod,
   PersonalizedAlerts,
+  RailFareEstimate,
   Recommendation,
   Ride,
+  RouteSuggestionResponse,
   RouteSummary,
   ServiceAlertResponse,
-  TransitOptions
+  TransitOptions,
+  TravelStatus
 } from "./types";
 
 function normalizeApiBase(rawValue?: string) {
@@ -169,6 +172,73 @@ export const api = {
       line
     });
     return request<ServiceAlertResponse>(`/service-alerts?${query.toString()}`, {}, token);
+  },
+  getTravelStatus(
+    token: string,
+    mode: string,
+    line: string,
+    origin: string,
+    destination: string,
+    timestamp?: string
+  ) {
+    const query = new URLSearchParams({
+      mode,
+      line,
+      origin,
+      destination,
+      limit: "12"
+    });
+    if (timestamp) {
+      query.set("timestamp", timestamp);
+    }
+    return request<TravelStatus>(`/travel-status?${query.toString()}`, {}, token);
+  },
+  getRouteSuggestions(
+    token: string,
+    origin: string,
+    destination: string,
+    timestamp?: string,
+    mode?: string,
+    line?: string,
+    paymentMethodId?: number | null
+  ) {
+    const query = new URLSearchParams({
+      origin,
+      destination,
+      limit: "4"
+    });
+    if (timestamp) {
+      query.set("timestamp", timestamp);
+    }
+    if (mode) {
+      query.set("mode", mode);
+    }
+    if (line) {
+      query.set("line", line);
+    }
+    if (paymentMethodId) {
+      query.set("payment_method_id", `${paymentMethodId}`);
+    }
+    return request<RouteSuggestionResponse>(`/route-suggestions?${query.toString()}`, {}, token);
+  },
+  getRailFareEstimate(
+    token: string,
+    mode: string,
+    line: string,
+    origin: string,
+    destination: string,
+    timestamp?: string
+  ) {
+    const query = new URLSearchParams({
+      mode,
+      line,
+      origin,
+      destination
+    });
+    if (timestamp) {
+      query.set("timestamp", timestamp);
+    }
+    return request<RailFareEstimate>(`/rail-fare-estimate?${query.toString()}`, {}, token);
   },
   getPersonalizedAlerts(token: string) {
     return request<PersonalizedAlerts>("/personalized-alerts", {}, token);

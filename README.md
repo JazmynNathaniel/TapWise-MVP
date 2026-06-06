@@ -1,18 +1,21 @@
 # TapWise
 
-TapWise is an MVP web app for NYC transit riders. It helps users track OMNY-style fare progress by payment method, choose the best card or device for the next tap, check upcoming subway and bus arrivals, and stay aware of service changes on routes they use often.
+TapWise is an MVP web app for NYC transit riders. It helps users track OMNY-style fare progress by payment method, choose the best card or device for the next tap, check upcoming subway, bus, LIRR, and Metro-North arrivals, and stay aware of service changes on routes they use often.
 
 ## Current Features
 
 - Fare tracking by card, OMNY card, mobile wallet, or custom payment method label
-- 7-day fare-cap windows per payment method
+- 7-day OMNY fare-cap windows per payment method
 - Best-next-tap recommendations based on fare-cap progress and active transfers
 - Free bus-to-train and train-to-bus transfer tracking
 - Manual and current-time ride logging
 - Separate dashboard tabs for fares, travel, payments, rides, and settings
-- Route board for subway and bus lines
+- Route board for subway, bus, LIRR, and Metro-North lines
+- Planned travel checks by route, origin, destination, and travel time
+- Route suggestions that consider service state, fare-cap progress, and rail ticket prices
 - Live arrivals grouped into adjacent terminal-direction cards
-- Service alerts and delay/service-change display for the selected route
+- Service alerts and delay/service-change display for the selected route and travel time
+- Peak and off-peak ticket estimates for LIRR and Metro-North trips
 - Personalized route notifications for frequently used routes
 - User-friendly frontend error messages that avoid exposing server details
 - Light and dark themes
@@ -138,7 +141,7 @@ This repo also includes [render.yaml](render.yaml) as a Render Blueprint starter
 
 ## VS Code
 
-The repo includes [.vscode/settings.json](.vscode/settings.json) to point the Python extension at `backend/.venv`, load `backend/.env`, and make backend imports easier for analysis.
+The repo includes [.vscode/settings.json](.vscode/settings.json) to point the Python extension at `backend/.venv/Scripts/python.exe`, load `backend/.env`, and make backend imports easier for analysis.
 
 If your editor still shows missing Flask package imports, re-select the interpreter manually and choose the Python environment inside `backend/.venv`.
 
@@ -158,6 +161,9 @@ If your editor still shows missing Flask package imports, re-select the interpre
 - `GET /api/routes`
 - `GET /api/arrivals`
 - `GET /api/service-alerts`
+- `GET /api/travel-status`
+- `GET /api/route-suggestions`
+- `GET /api/rail-fare-estimate`
 - `GET /api/personalized-alerts`
 - `POST /api/notification-preferences`
 
@@ -165,7 +171,9 @@ Compatibility aliases were added for the typo variants from the spec (`payment_m
 
 ## Fare Logic
 
-- A payment method starts a 7-day fare-cap window on its first ride.
+- A payment method starts a 7-day fare-cap window on its first OMNY-eligible subway or bus ride.
+- Only subway, bus, and Select Bus Service rides count toward the OMNY 12-ride weekly fare cap.
+- LIRR and Metro-North rides can be logged for route information, arrivals, and service alerts, but they use separate ticketing systems and do not count toward OMNY fare-cap progress.
 - Only cap-counting rides inside that 7-day block count toward the cap for that payment method.
 - A bus-to-train or train-to-bus transfer on the same payment method is free for two hours.
 - Free transfer rides do not count toward the 12-ride fare cap.

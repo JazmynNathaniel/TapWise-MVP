@@ -5,7 +5,13 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from ..extensions import db
 from ..models import PaymentMethod, Ride
-from ..services.fare_engine import RideFareMetadata, analyze_rides, ensure_utc
+from ..services.fare_engine import (
+    RideFareMetadata,
+    analyze_rides,
+    ensure_utc,
+    is_omny_fare_cap_mode,
+)
+from ..services.rail_fares import estimate_rail_fare
 from ..services.transit_data import get_transit_options, is_valid_transit_selection
 
 rides_bp = Blueprint("rides", __name__)
@@ -29,13 +35,20 @@ def _serialize_ride(ride: Ride, fare_metadata: RideFareMetadata | None = None) -
         "exit_stop": ride.exit_stop,
         "timestamp": ride.timestamp.isoformat(),
         "created_at": ride.created_at.isoformat(),
+        "rail_fare": estimate_rail_fare(
+            ride.transit_mode,
+            ride.transit_line,
+            ride.entry_stop,
+            ride.exit_stop,
+            ride.timestamp,
+        ),
     }
     if fare_metadata:
         payload.update(fare_metadata.to_dict())
     else:
         payload.update(
             {
-                "counts_toward_cap": True,
+                "counts_toward_cap": is_omny_fare_cap_mode(ride.transit_mode),
                 "is_transfer": False,
                 "transfer_source_ride_id": None,
                 "transfer_expires_at": None,

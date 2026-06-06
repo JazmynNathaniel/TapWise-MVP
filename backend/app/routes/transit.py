@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from sqlalchemy import desc
 
 from ..extensions import db
 from ..models import Ride, RouteNotificationPreference
+from ..services.fare_engine import calculate_fare_status
+from ..services.rail_fares import estimate_rail_fare, is_rail_fare_mode
 from ..services.mta_realtime import get_next_arrivals, get_service_alerts
 from ..services.transit_data import (
     get_transit_options,
@@ -14,6 +18,19 @@ from ..services.transit_data import (
 )
 
 transit_bp = Blueprint("transit", __name__)
+BLOCKING_ALERT_EFFECTS = {"NO_SERVICE"}
+BLOCKING_ALERT_KEYWORDS = (
+    "no service",
+    "not running",
+    "suspended",
+    "service suspended",
+    "service is suspended",
+    "line is closed",
+    "station is closed",
+    "temporarily closed",
+)
+RAIL_MODES = {"lirr", "metro_north"}
+OMNY_MODES = {"subway", "bus"}
 
 
 def _user_id() -> int:
@@ -34,6 +51,149 @@ def _serialize_preference(preference: RouteNotificationPreference) -> dict:
         "created_at": preference.created_at.isoformat(),
         "updated_at": preference.updated_at.isoformat(),
     }
+
+
+def _parse_timestamp(raw_value: str | None) -> datetime:
+    if not raw_value:
+        return datetime.now(timezone.utc)
+    parsed = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _alert_blocks_service(alert: dict) -> bool:
+    effect = (alert.get("effect") or "").upper()
+    if effect in BLOCKING_ALERT_EFFECTS:
+        return True
+
+    searchable_text = " ".join(
+        str(alert.get(key) or "").lower()
+        for key in ("title", "description", "effect", "cause")
+    )
+    return any(keyword in searchable_text for keyword in BLOCKING_ALERT_KEYWORDS)
+
+
+def _travel_status_message(
+    *,
+    service_state: str,
+    origin: str,
+    destination: str,
+    arrivals_message: str,
+    alert_message: str,
+    blocking_alerts: list[dict],
+    alerts: list[dict],
+) -> str:
+    if service_state == "no_service":
+        alert = blocking_alerts[0]
+        reason = alert.get("description") or alert.get("title") or alert.get("effect")
+        return (
+            f"No arrival or departure is available from {origin} to {destination} "
+            f"because MTA reports this service is not running: {reason}"
+        )
+    if service_state == "in_service":
+        return f"Arrival and departure options are available from {origin} to {destination}."
+    if service_state == "service_alert":
+        return (
+            f"Arrival and departure options are available, but {len(alerts)} service "
+            f"{'change is' if len(alerts) == 1 else 'changes are'} active for this trip time."
+        )
+    if service_state == "no_departures":
+        if alerts:
+            return (
+                f"No arrival or departure was returned for {origin} to {destination} "
+                "at the selected time. Active service changes are shown below."
+            )
+        return (
+            f"No arrival or departure was returned for {origin} to {destination} "
+            "at the selected time, and MTA has no active service change for that line then."
+        )
+    return arrivals_message or alert_message or "Travel information is unavailable right now."
+
+
+def _first_payment_method_for_user(user_id: int):
+    from ..models import PaymentMethod
+
+    return PaymentMethod.query.filter_by(user_id=user_id).order_by(PaymentMethod.id.asc()).first()
+
+
+def _route_candidate_score(
+    *,
+    mode: str,
+    service_state: str,
+    fare_status: dict | None,
+    rail_fare: dict | None,
+) -> int:
+    score = 0
+    if service_state == "in_service":
+        score += 70
+    elif service_state == "service_alert":
+        score += 48
+    elif service_state == "no_departures":
+        score += 18
+    elif service_state == "no_service":
+        score -= 70
+    else:
+        score -= 20
+
+    if mode in OMNY_MODES and fare_status:
+        if fare_status.get("free_rides_active"):
+            score += 28
+        elif fare_status.get("rides_remaining", 12) <= 2:
+            score += 14
+        else:
+            score += 8
+
+    if mode in RAIL_MODES and rail_fare and rail_fare.get("estimated_price") is not None:
+        score += 6
+        if rail_fare.get("estimated_period") == "off_peak":
+            score += 4
+        if rail_fare.get("estimated_period") == "peak":
+            score -= 4
+
+    return score
+
+
+def _route_candidate_reason(
+    *,
+    mode: str,
+    service_state: str,
+    fare_status: dict | None,
+    rail_fare: dict | None,
+) -> str:
+    reasons = []
+    if service_state == "no_service":
+        reasons.append("MTA reports this line is not running for the selected time.")
+    elif service_state == "no_departures":
+        reasons.append("No arrival or departure was returned for the selected time.")
+    elif service_state == "service_alert":
+        reasons.append("Service is available, but an active service change is reported.")
+    elif service_state == "in_service":
+        reasons.append("Service is available for the selected time.")
+    else:
+        reasons.append("Live service information is unavailable right now.")
+
+    if mode in OMNY_MODES:
+        active_transfer = (fare_status or {}).get("active_transfer") or {}
+        if active_transfer.get("available"):
+            reasons.append("Your selected OMNY method has an active transfer window.")
+        elif fare_status and fare_status.get("free_rides_active"):
+            reasons.append("Your selected OMNY method is already in free rides.")
+        elif fare_status:
+            remaining = fare_status.get("rides_remaining", 12)
+            reasons.append(f"This ride can count toward your OMNY cap; {remaining} cap rides remain.")
+        else:
+            reasons.append("Subway and bus rides can count toward the OMNY weekly fare cap.")
+    elif rail_fare and rail_fare.get("estimated_price") is not None:
+        reasons.append(
+            "This is a separate railroad ticket: "
+            f"{rail_fare.get('estimated_period', 'estimated').replace('_', '-')} "
+            f"${rail_fare['estimated_price']:.2f}."
+        )
+    elif mode in RAIL_MODES:
+        reasons.append("This commuter railroad trip uses separate ticketing and does not count toward OMNY.")
+
+    return " ".join(reasons)
 
 
 def _load_preferences(user_id: int) -> dict[tuple[str, str, str], RouteNotificationPreference]:
@@ -149,6 +309,255 @@ def service_alerts():
         return jsonify({"error": "Please choose a valid transit mode."}), 400
 
     return jsonify(get_service_alerts(mode=mode, line=line, limit=limit))
+
+
+@transit_bp.get("/travel-status")
+@jwt_required()
+def travel_status():
+    mode = (request.args.get("mode") or "").strip().lower()
+    line = (request.args.get("line") or "").strip()
+    origin = (request.args.get("origin") or "").strip()
+    destination = (request.args.get("destination") or "").strip()
+    limit = min(12, max(1, request.args.get("limit", 6, type=int)))
+
+    if not mode or not line or not origin or not destination:
+        return jsonify({"error": "Please choose a service, route, origin, and destination."}), 400
+    if not is_valid_transit_selection(mode, line, origin, destination):
+        return jsonify({"error": "Please choose a valid route and stops."}), 400
+
+    try:
+        travel_time = _parse_timestamp(request.args.get("timestamp"))
+    except ValueError:
+        return jsonify({"error": "Please choose a valid travel time."}), 400
+
+    alert_payload = get_service_alerts(
+        mode=mode,
+        line=line,
+        limit=30,
+        reference_time=travel_time,
+    )
+    alerts = alert_payload.get("alerts", [])
+    blocking_alerts = [alert for alert in alerts if _alert_blocks_service(alert)]
+
+    if blocking_alerts:
+        arrivals_payload = {
+            "status": "empty",
+            "message": "No arrivals or departures are available while service is not running.",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "arrivals": [],
+        }
+        service_state = "no_service"
+    else:
+        arrivals_payload = get_next_arrivals(
+            mode=mode,
+            line=line,
+            stop_name=origin,
+            limit=limit,
+            reference_time=travel_time,
+        )
+        if arrivals_payload.get("status") == "ok" and alerts:
+            service_state = "service_alert"
+        elif arrivals_payload.get("status") == "ok":
+            service_state = "in_service"
+        elif arrivals_payload.get("status") in {"empty", "partial"}:
+            service_state = "no_departures"
+        else:
+            service_state = "unavailable"
+
+    message = _travel_status_message(
+        service_state=service_state,
+        origin=origin,
+        destination=destination,
+        arrivals_message=arrivals_payload.get("message", ""),
+        alert_message=alert_payload.get("message", ""),
+        blocking_alerts=blocking_alerts,
+        alerts=alerts,
+    )
+
+    return jsonify(
+        {
+            "status": service_state,
+            "service_state": service_state,
+            "mode": mode,
+            "line": line,
+            "origin": origin,
+            "destination": destination,
+            "timestamp": travel_time.isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "message": message,
+            "arrivals_status": arrivals_payload.get("status", "unavailable"),
+            "arrivals_message": arrivals_payload.get("message", ""),
+            "arrivals": arrivals_payload.get("arrivals", []),
+            "alerts_status": alert_payload.get("status", "unavailable"),
+            "alerts_message": alert_payload.get("message", ""),
+            "alerts": alerts,
+            "blocking_alerts": blocking_alerts,
+        }
+    )
+
+
+@transit_bp.get("/route-suggestions")
+@jwt_required()
+def route_suggestions():
+    user_id = _user_id()
+    origin = (request.args.get("origin") or "").strip()
+    destination = (request.args.get("destination") or "").strip()
+    preferred_mode = (request.args.get("mode") or "").strip().lower()
+    preferred_line = (request.args.get("line") or "").strip()
+    payment_method_id = request.args.get("payment_method_id", type=int)
+    limit = min(6, max(1, request.args.get("limit", 4, type=int)))
+
+    if not origin or not destination:
+        return jsonify({"error": "Please choose an origin and destination."}), 400
+
+    try:
+        travel_time = _parse_timestamp(request.args.get("timestamp"))
+    except ValueError:
+        return jsonify({"error": "Please choose a valid travel time."}), 400
+
+    options = get_transit_options()
+    method = None
+    if payment_method_id:
+        from ..models import PaymentMethod
+
+        method = PaymentMethod.query.filter_by(id=payment_method_id, user_id=user_id).first()
+    if method is None:
+        method = _first_payment_method_for_user(user_id)
+
+    fare_status = None
+    if method is not None:
+        fare_status = calculate_fare_status(method.rides, now=travel_time).to_dict()
+
+    candidates = []
+    for mode, line_options in options.items():
+        if preferred_mode and mode != preferred_mode:
+            continue
+        for line, stops in line_options.items():
+            if preferred_line and line != preferred_line:
+                continue
+            if origin not in stops or destination not in stops or origin == destination:
+                continue
+
+            alert_payload = get_service_alerts(
+                mode=mode,
+                line=line,
+                limit=10,
+                reference_time=travel_time,
+            )
+            alerts = alert_payload.get("alerts", [])
+            blocking_alerts = [alert for alert in alerts if _alert_blocks_service(alert)]
+
+            if blocking_alerts:
+                arrivals = []
+                service_state = "no_service"
+            else:
+                arrival_payload = get_next_arrivals(
+                    mode=mode,
+                    line=line,
+                    stop_name=origin,
+                    limit=3,
+                    reference_time=travel_time,
+                )
+                arrivals = arrival_payload.get("arrivals", [])
+                if arrival_payload.get("status") == "ok" and alerts:
+                    service_state = "service_alert"
+                elif arrival_payload.get("status") == "ok":
+                    service_state = "in_service"
+                elif arrival_payload.get("status") in {"empty", "partial"}:
+                    service_state = "no_departures"
+                else:
+                    service_state = "unavailable"
+
+            rail_fare = estimate_rail_fare(mode, line, origin, destination, travel_time)
+            score = _route_candidate_score(
+                mode=mode,
+                service_state=service_state,
+                fare_status=fare_status,
+                rail_fare=rail_fare,
+            )
+            stop_count = abs(stops.index(destination) - stops.index(origin))
+            if stop_count <= 4:
+                score += 6
+            elif stop_count <= 10:
+                score += 3
+
+            candidates.append(
+                {
+                    "mode": mode,
+                    "line": line,
+                    "origin": origin,
+                    "destination": destination,
+                    "service_state": service_state,
+                    "score": score,
+                    "stop_count": stop_count,
+                    "message": _route_candidate_reason(
+                        mode=mode,
+                        service_state=service_state,
+                        fare_status=fare_status,
+                        rail_fare=rail_fare,
+                    ),
+                    "next_arrivals": arrivals,
+                    "alerts": alerts,
+                    "blocking_alerts": blocking_alerts,
+                    "rail_fare": rail_fare,
+                    "counts_toward_cap": mode in OMNY_MODES,
+                }
+            )
+
+    candidates.sort(
+        key=lambda item: (
+            item["score"],
+            -item["stop_count"],
+            item["service_state"] == "in_service",
+        ),
+        reverse=True,
+    )
+
+    if candidates:
+        best = candidates[0]
+        message = (
+            f"Best direct option: {best['line']} "
+            f"({best['mode'].replace('_', ' ').title()}). {best['message']}"
+        )
+    else:
+        message = (
+            "No direct route in the TapWise catalog contains both selected stops. "
+            "Try a transfer hub or another service."
+        )
+
+    return jsonify(
+        {
+            "status": "ok" if candidates else "empty",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "timestamp": travel_time.isoformat(),
+            "origin": origin,
+            "destination": destination,
+            "message": message,
+            "fare_status": fare_status,
+            "suggestions": candidates[:limit],
+        }
+    )
+
+
+@transit_bp.get("/rail-fare-estimate")
+@jwt_required()
+def rail_fare_estimate():
+    mode = (request.args.get("mode") or "").strip().lower()
+    line = (request.args.get("line") or "").strip()
+    origin = (request.args.get("origin") or "").strip()
+    destination = (request.args.get("destination") or "").strip()
+
+    if not is_rail_fare_mode(mode):
+        return jsonify({"error": "Rail fares are only available for LIRR and Metro-North."}), 400
+    if not is_valid_transit_selection(mode, line, origin, destination):
+        return jsonify({"error": "Please choose a valid railroad route and stations."}), 400
+
+    try:
+        timestamp = _parse_timestamp(request.args.get("timestamp"))
+    except ValueError:
+        return jsonify({"error": "Please choose a valid travel time."}), 400
+
+    return jsonify(estimate_rail_fare(mode, line, origin, destination, timestamp))
 
 
 @transit_bp.get("/frequent-routes")
