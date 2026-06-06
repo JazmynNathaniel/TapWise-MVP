@@ -8,6 +8,7 @@ import {
   PaymentMethod,
   PersonalizedAlerts,
   RailFareEstimate,
+  RailScheduleOption,
   Recommendation,
   Ride,
   RouteSuggestionResponse,
@@ -330,6 +331,15 @@ function formatTravelDuration(minutes: number | null | undefined) {
     return "1 min";
   }
   return `${minutes} min`;
+}
+
+function formatScheduleOffset(minutes: number) {
+  const absoluteMinutes = Math.abs(minutes);
+  if (absoluteMinutes === 0) {
+    return "Selected time";
+  }
+  const label = absoluteMinutes === 1 ? "1 min" : `${absoluteMinutes} min`;
+  return minutes < 0 ? `${label} before` : `${label} after`;
 }
 
 function formatTravelTimeModeLabel(value: TravelTimeMode) {
@@ -1143,10 +1153,13 @@ function App() {
           time_mode: travelTimingMode,
           requested_time: selectedTravelTimestamp ?? generatedAt,
           departure_search_time: selectedTravelTimestamp ?? generatedAt,
+          schedule_window_start: selectedTravelTimestamp ?? generatedAt,
+          schedule_window_end: selectedTravelTimestamp ?? generatedAt,
           estimated_departure_time: null,
           estimated_arrival_time: null,
           travel_minutes: 0,
           arrives_by_requested_time: travelTimingMode === "arrive_by" ? false : null,
+          schedule_options: [],
           generated_at: generatedAt,
           message: error.message,
           arrivals_status: "unavailable",
@@ -1757,6 +1770,20 @@ function App() {
     const stops = transitOptions?.[mode]?.[line] ?? [];
     setSelectedRouteStop(stops[0] ?? "");
     setSelectedRailDestinationStop(stops[1] ?? stops[0] ?? "");
+  }
+
+  function selectRailScheduleOption(option: RailScheduleOption) {
+    const targetTime =
+      travelTimingMode === "arrive_by"
+        ? option.estimated_arrival_time
+        : option.departure_time;
+    const date = new Date(targetTime);
+    if (Number.isNaN(date.getTime())) {
+      return;
+    }
+
+    setTravelDate(formatLocalDateInput(date));
+    setTravelTime(formatLocalTimeInput(date));
   }
 
   async function handleNotificationToggle(route: FrequentRoute) {
@@ -2605,6 +2632,54 @@ function App() {
                 ) : null}
               </div>
 
+              {selectedRouteIsRail ? (
+                <div className="rail-schedule-panel" aria-live="polite">
+                  <div className="arrival-board-heading">
+                    <strong>Train schedule window</strong>
+                    <span>
+                      {travelStatus?.schedule_options.length
+                        ? `${travelStatus.schedule_options.length} trains`
+                        : "Checking"}
+                    </span>
+                  </div>
+                  {travelStatus?.schedule_options.length ? (
+                    <div className="rail-schedule-list">
+                      {travelStatus.schedule_options.map((option) => (
+                        <button
+                          type="button"
+                          className={
+                            option.is_selected
+                              ? "rail-schedule-option active"
+                              : "rail-schedule-option"
+                          }
+                          key={`${option.trip_id}:${option.departure_time}`}
+                          onClick={() => selectRailScheduleOption(option)}
+                        >
+                          <div>
+                            <span>{option.relation_label}</span>
+                            <strong>{formatTripTime(option.departure_time)}</strong>
+                          </div>
+                          <div>
+                            <span>Arrive</span>
+                            <strong>{formatTripTime(option.estimated_arrival_time)}</strong>
+                          </div>
+                          <div>
+                            <span>{formatTravelDuration(option.travel_minutes)}</span>
+                            <strong>{formatScheduleOffset(option.minutes_from_request)}</strong>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="empty-state">
+                      {travelStatusLoading
+                        ? "Checking scheduled trains around the selected time."
+                        : "No railroad schedule options were returned for the selected 24-hour window."}
+                    </p>
+                  )}
+                </div>
+              ) : null}
+
               <div className="route-suggestion-board" aria-live="polite">
                 <div className="arrival-board-heading">
                   <strong>Route suggestions</strong>
@@ -2757,6 +2832,7 @@ function App() {
                 ) : null}
               </div>
 
+              {!selectedRouteIsRail ? (
               <div className="arrival-board" aria-live="polite">
                 <div className="arrival-board-heading">
                   <strong>
@@ -2815,6 +2891,7 @@ function App() {
                   </>
                 ) : null}
               </div>
+              ) : null}
             </div>
           </div>
         </article>

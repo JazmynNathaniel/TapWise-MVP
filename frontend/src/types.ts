@@ -69,6 +69,22 @@ export type ArrivalResponse = {
   arrivals: Arrival[];
 };
 
+export type RailScheduleOption = {
+  transit_mode: TransitMode;
+  line: string;
+  route_id: string;
+  trip_id: string;
+  direction: string;
+  departure_time: string;
+  estimated_arrival_time: string;
+  travel_minutes: number;
+  minutes_from_request: number;
+  relation: "before_selected" | "after_selected" | "before_arrive_by" | "after_arrive_by";
+  relation_label: string;
+  meets_requested_time: boolean;
+  is_selected: boolean;
+};
+
 export type ServiceAlert = {
   id: string;
   transit_mode: TransitMode;
@@ -102,10 +118,13 @@ export type TravelStatus = {
   time_mode: TravelTimeMode;
   requested_time: string;
   departure_search_time: string;
+  schedule_window_start: string;
+  schedule_window_end: string;
   estimated_departure_time: string | null;
   estimated_arrival_time: string | null;
   travel_minutes: number;
   arrives_by_requested_time: boolean | null;
+  schedule_options: RailScheduleOption[];
   generated_at: string;
   message: string;
   arrivals_status: ArrivalResponse["status"];
@@ -128,10 +147,13 @@ export type RouteSuggestion = {
   time_mode: TravelTimeMode;
   requested_time: string;
   departure_search_time: string;
+  schedule_window_start: string;
+  schedule_window_end: string;
   estimated_departure_time: string | null;
   estimated_arrival_time: string | null;
   travel_minutes: number;
   arrives_by_requested_time: boolean | null;
+  schedule_options: RailScheduleOption[];
   message: string;
   next_arrivals: Arrival[];
   alerts: ServiceAlert[];

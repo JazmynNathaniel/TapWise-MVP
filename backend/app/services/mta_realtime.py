@@ -223,9 +223,11 @@ def _arrivals_from_feed(
     stop_name: str,
     stop_ids: set[str],
     now: datetime,
+    end_time: datetime | None = None,
 ) -> list[dict]:
     arrivals = []
     now_timestamp = int(now.timestamp())
+    end_timestamp = int(end_time.timestamp()) if end_time else None
 
     for entity in feed.entity:
         if not entity.HasField("trip_update"):
@@ -244,6 +246,8 @@ def _arrivals_from_feed(
 
             timestamp = _arrival_timestamp(stop_update)
             if not timestamp or timestamp < now_timestamp:
+                continue
+            if end_timestamp and timestamp > end_timestamp:
                 continue
 
             arrivals.append(
@@ -270,6 +274,7 @@ def get_next_arrivals(
     stop_name: str,
     limit: int = 6,
     reference_time: datetime | None = None,
+    end_time: datetime | None = None,
 ) -> dict:
     route_ids = get_route_ids_for_selection(mode, line)
     stop_ids = set(get_stop_ids_for_selection(mode, line, stop_name))
@@ -314,6 +319,7 @@ def get_next_arrivals(
                     stop_name=stop_name,
                     stop_ids=stop_ids,
                     now=now,
+                    end_time=end_time,
                 )
             )
     except RealtimeUnavailable:

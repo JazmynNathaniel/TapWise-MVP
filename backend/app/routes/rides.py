@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
+from sqlalchemy import desc
 
 from ..extensions import db
 from ..models import PaymentMethod, Ride
@@ -84,7 +85,7 @@ def list_rides():
     user_id = int(get_jwt_identity())
     rides = (
         Ride.query.filter_by(user_id=user_id)
-        .order_by(Ride.timestamp.desc())
+        .order_by(desc(Ride.timestamp))
         .all()
     )
     metadata_by_id = _build_ride_metadata(rides)

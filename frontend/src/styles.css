@@ -1244,6 +1244,7 @@ p {
 .travel-time-panel,
 .travel-status-card,
 .route-suggestion-board,
+.rail-schedule-panel,
 .rail-fare-card {
   display: grid;
   gap: 0.75rem;
@@ -1404,6 +1405,64 @@ p {
 
 .route-suggestion-board {
   border-color: rgba(160, 180, 197, 0.2);
+}
+
+.rail-schedule-panel {
+  border-color: rgba(78, 196, 161, 0.26);
+  background: rgba(78, 196, 161, 0.07);
+}
+
+.rail-schedule-list {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.rail-schedule-option {
+  display: grid;
+  grid-template-columns: minmax(84px, 1.1fr) minmax(84px, 1fr) minmax(88px, 1.1fr);
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 72px;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(160, 180, 197, 0.16);
+  background: rgba(5, 14, 23, 0.42);
+  color: var(--ink);
+  text-align: left;
+}
+
+.rail-schedule-option.active {
+  border-color: rgba(78, 196, 161, 0.56);
+  background: rgba(78, 196, 161, 0.16);
+}
+
+.rail-schedule-option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(78, 196, 161, 0.48);
+}
+
+.rail-schedule-option div {
+  display: grid;
+  align-content: center;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.rail-schedule-option span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.rail-schedule-option strong {
+  color: var(--ink);
+  font-size: 0.98rem;
+  line-height: 1.18;
 }
 
 .route-suggestion-list {
@@ -2117,6 +2176,14 @@ p {
   }
 
   .rail-fare-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rail-schedule-list {
+    max-height: 360px;
+  }
+
+  .rail-schedule-option {
     grid-template-columns: 1fr;
   }
 
