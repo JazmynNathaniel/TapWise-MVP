@@ -35,7 +35,6 @@ class PaymentMethod(db.Model):
     label = db.Column(db.String(120), nullable=False)
     payment_type = db.Column(db.String(40), nullable=False, default="other")
     cardholder_name = db.Column(db.String(120), nullable=False, default="")
-    last4 = db.Column(db.String(4), nullable=False, default="0000")
     identifier_code = db.Column(db.String(4), nullable=False, default="0000")
     details_fingerprint = db.Column(db.String(64), nullable=False, default="")
     created_at = db.Column(

@@ -113,10 +113,6 @@ def _ensure_payment_method_columns() -> None:
         statements.append(
             "ALTER TABLE payment_methods ADD COLUMN cardholder_name VARCHAR(120) NOT NULL DEFAULT ''"
         )
-    if "last4" not in existing_columns:
-        statements.append(
-            "ALTER TABLE payment_methods ADD COLUMN last4 VARCHAR(4) NOT NULL DEFAULT '0000'"
-        )
     if "identifier_code" not in existing_columns:
         statements.append(
             "ALTER TABLE payment_methods ADD COLUMN identifier_code VARCHAR(4) NOT NULL DEFAULT '0000'"

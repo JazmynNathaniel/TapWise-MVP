@@ -18,7 +18,7 @@ ALLOWED_PAYMENT_TYPES = {
 
 
 def _serialize_payment_method(payment_method: PaymentMethod) -> dict:
-    identifier_code = payment_method.identifier_code or payment_method.last4
+    identifier_code = payment_method.identifier_code
     return {
         "id": payment_method.id,
         "label": payment_method.label,
@@ -68,7 +68,6 @@ def create_payment_method():
         label=label,
         payment_type=payment_type,
         cardholder_name="",
-        last4="0000",
         identifier_code=identifier_code,
         details_fingerprint=details_fingerprint,
     )
