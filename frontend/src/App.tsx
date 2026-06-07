@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useRef, useState, type CSSProperties } from "react";
 import { api } from "./api";
+import { Analytics } from "@vercel/analytics/react";
 import {
   Arrival,
   ArrivalResponse,
@@ -3375,6 +3376,7 @@ function App() {
           </div>
         </article>
       </section>
+      <Analytics />
     </main>
   );
 }
