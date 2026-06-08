@@ -1,14 +1,11 @@
 import { FormEvent, useEffect, useRef, useState, type CSSProperties } from "react";
 import { api } from "./api";
 import {
-  Arrival,
-  ArrivalResponse,
   FareStatus,
   FrequentRoute,
   PaymentMethod,
   PersonalizedAlerts,
   RailFareEstimate,
-  RailScheduleOption,
   Recommendation,
   Ride,
   RouteSuggestionResponse,
@@ -16,6 +13,7 @@ import {
   ServiceAlertResponse,
   TransitMode,
   TransitOptions,
+  TravelScheduleOption,
   TravelTimeMode,
   TravelStatus,
   User
@@ -302,13 +300,6 @@ function formatShortDate(value: string | null) {
   });
 }
 
-function formatArrivalTime(value: string) {
-  return new Date(value).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit"
-  });
-}
-
 function formatTripTime(value: string | null | undefined) {
   if (!value) {
     return "Not available";
@@ -338,22 +329,42 @@ function formatScheduleOffset(minutes: number) {
   if (absoluteMinutes === 0) {
     return "Selected time";
   }
-  const label = absoluteMinutes === 1 ? "1 min" : `${absoluteMinutes} min`;
+  const hours = Math.floor(absoluteMinutes / 60);
+  const remainingMinutes = absoluteMinutes % 60;
+  const label =
+    hours > 0
+      ? `${hours}h${remainingMinutes ? ` ${remainingMinutes}m` : ""}`
+      : absoluteMinutes === 1
+        ? "1 min"
+        : `${absoluteMinutes} min`;
   return minutes < 0 ? `${label} before` : `${label} after`;
+}
+
+function formatScheduleRelation(value: TravelScheduleOption["relation"]) {
+  if (value === "before_arrive_by") {
+    return "Before target";
+  }
+  if (value === "after_arrive_by") {
+    return "After target";
+  }
+  if (value === "before_selected") {
+    return "Before time";
+  }
+  return "After time";
 }
 
 function formatTravelTimeModeLabel(value: TravelTimeMode) {
   return value === "arrive_by" ? "Arrive by" : "Leave at";
 }
 
-function formatMinutesUntil(minutes: number) {
-  if (minutes <= 0) {
-    return "Due";
+function getScheduleBoardTitle(mode: TransitMode) {
+  if (mode === "bus") {
+    return "Bus schedule";
   }
-  if (minutes === 1) {
-    return "1 min";
+  if (mode === "subway") {
+    return "Train schedule";
   }
-  return `${minutes} min`;
+  return "Railroad schedule";
 }
 
 function playNotificationPreview(soundOption: SoundOption, volume: number) {
@@ -411,62 +422,6 @@ function playNotificationPreview(soundOption: SoundOption, volume: number) {
 
 function formatModeLabel(value: string) {
   return TRANSIT_MODE_OPTIONS.find((option) => option.value === value)?.label ?? value;
-}
-
-function getArrivalDirectionBucket(arrival: Arrival): "first" | "last" {
-  const normalizedDirection = arrival.direction.toLowerCase();
-
-  if (
-    normalizedDirection.includes("north") ||
-    normalizedDirection.includes("west")
-  ) {
-    return "first";
-  }
-
-  if (
-    normalizedDirection.includes("south") ||
-    normalizedDirection.includes("east")
-  ) {
-    return "last";
-  }
-
-  if (arrival.direction_id === 1) {
-    return "last";
-  }
-
-  return "first";
-}
-
-function getDirectionCards(
-  arrivals: Arrival[],
-  firstStop: string,
-  lastStop: string
-) {
-  const firstStopLabel = firstStop || "the first stop";
-  const lastStopLabel = lastStop || "the last stop";
-
-  return [
-    {
-      id: "first",
-      className: "direction-card direction-card-first",
-      title: `Toward ${firstStopLabel}`,
-      detail: "First stop on this line",
-      terminal: firstStopLabel,
-      arrivals: arrivals.filter(
-        (arrival) => getArrivalDirectionBucket(arrival) === "first"
-      )
-    },
-    {
-      id: "last",
-      className: "direction-card direction-card-last",
-      title: `Toward ${lastStopLabel}`,
-      detail: "Last stop on this line",
-      terminal: lastStopLabel,
-      arrivals: arrivals.filter(
-        (arrival) => getArrivalDirectionBucket(arrival) === "last"
-      )
-    }
-  ];
 }
 
 function getPaymentTypeLabel(value: string) {
@@ -879,8 +834,6 @@ function App() {
   const [travelTimingMode, setTravelTimingMode] = useState<TravelTimeMode>("leave_at");
   const [travelDate, setTravelDate] = useState(() => createManualRideDateTime().date);
   const [travelTime, setTravelTime] = useState(() => createManualRideDateTime().time);
-  const [arrivalBoard, setArrivalBoard] = useState<ArrivalResponse | null>(null);
-  const [arrivalLoading, setArrivalLoading] = useState(false);
   const [selectedRouteAlerts, setSelectedRouteAlerts] = useState<ServiceAlertResponse | null>(null);
   const [selectedRouteAlertsLoading, setSelectedRouteAlertsLoading] = useState(false);
   const [travelStatus, setTravelStatus] = useState<TravelStatus | null>(null);
@@ -1092,14 +1045,12 @@ function App() {
       !selectedRailDestinationStop
     ) {
       setTravelStatus(null);
-      setArrivalBoard(null);
       setSelectedRouteAlerts(null);
       return;
     }
 
     let cancelled = false;
     setTravelStatusLoading(true);
-    setArrivalLoading(true);
     setSelectedRouteAlertsLoading(true);
     void api
       .getTravelStatus(
@@ -1117,12 +1068,6 @@ function App() {
         }
 
         setTravelStatus(payload);
-        setArrivalBoard({
-          status: payload.arrivals_status,
-          message: payload.arrivals_message,
-          generated_at: payload.generated_at,
-          arrivals: payload.arrivals
-        });
         setSelectedRouteAlerts({
           status: payload.alerts_status,
           message: payload.alerts_message,
@@ -1170,12 +1115,6 @@ function App() {
           alerts: [],
           blocking_alerts: []
         });
-        setArrivalBoard({
-          status: "unavailable",
-          message: error.message,
-          generated_at: generatedAt,
-          arrivals: []
-        });
         setSelectedRouteAlerts({
           status: "unavailable",
           message: error.message,
@@ -1186,7 +1125,6 @@ function App() {
       .finally(() => {
         if (!cancelled) {
           setTravelStatusLoading(false);
-          setArrivalLoading(false);
           setSelectedRouteAlertsLoading(false);
         }
       });
@@ -1636,7 +1574,6 @@ function App() {
     setTransitOptions(null);
     setRouteSummaries([]);
     setPersonalizedAlerts(null);
-    setArrivalBoard(null);
   }
 
   function updateSettings<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
@@ -1772,7 +1709,7 @@ function App() {
     setSelectedRailDestinationStop(stops[1] ?? stops[0] ?? "");
   }
 
-  function selectRailScheduleOption(option: RailScheduleOption) {
+  function selectScheduleOption(option: TravelScheduleOption) {
     const targetTime =
       travelTimingMode === "arrive_by"
         ? option.estimated_arrival_time
@@ -2046,6 +1983,7 @@ function App() {
             </button>
           </form>
         </section>
+        <p className="app-copyright">Copyright &copy; 2026 Jazmyn Nathaniel</p>
       </main>
     );
   }
@@ -2065,13 +2003,6 @@ function App() {
     (stop) => stop !== selectedRouteStop
   );
   const rideFormIsRail = isRailTransitMode(rideForm.transitMode);
-  const firstRouteStop = routeStops[0] ?? "";
-  const lastRouteStop = routeStops[routeStops.length - 1] ?? "";
-  const directionCards = getDirectionCards(
-    arrivalBoard?.arrivals ?? [],
-    firstRouteStop,
-    lastRouteStop
-  );
   const frequentRoutes = personalizedAlerts?.routes ?? [];
   const personalizedNotifications = personalizedAlerts?.notifications ?? [];
 
@@ -2632,53 +2563,51 @@ function App() {
                 ) : null}
               </div>
 
-              {selectedRouteIsRail ? (
-                <div className="rail-schedule-panel" aria-live="polite">
-                  <div className="arrival-board-heading">
-                    <strong>Train schedule window</strong>
-                    <span>
-                      {travelStatus?.schedule_options.length
-                        ? `${travelStatus.schedule_options.length} trains`
-                        : "Checking"}
-                    </span>
-                  </div>
-                  {travelStatus?.schedule_options.length ? (
-                    <div className="rail-schedule-list">
-                      {travelStatus.schedule_options.map((option) => (
-                        <button
-                          type="button"
-                          className={
-                            option.is_selected
-                              ? "rail-schedule-option active"
-                              : "rail-schedule-option"
-                          }
-                          key={`${option.trip_id}:${option.departure_time}`}
-                          onClick={() => selectRailScheduleOption(option)}
-                        >
-                          <div>
-                            <span>{option.relation_label}</span>
-                            <strong>{formatTripTime(option.departure_time)}</strong>
-                          </div>
-                          <div>
-                            <span>Arrive</span>
-                            <strong>{formatTripTime(option.estimated_arrival_time)}</strong>
-                          </div>
-                          <div>
-                            <span>{formatTravelDuration(option.travel_minutes)}</span>
-                            <strong>{formatScheduleOffset(option.minutes_from_request)}</strong>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="empty-state">
-                      {travelStatusLoading
-                        ? "Checking scheduled trains around the selected time."
-                        : "No railroad schedule options were returned for the selected 24-hour window."}
-                    </p>
-                  )}
+              <div className="schedule-panel" aria-live="polite">
+                <div className="arrival-board-heading">
+                  <strong>{getScheduleBoardTitle(selectedRouteMode)}</strong>
+                  <span>
+                    {travelStatus?.schedule_options.length
+                      ? `${travelStatus.schedule_options.length} trips`
+                      : "Checking"}
+                  </span>
                 </div>
-              ) : null}
+                {travelStatus?.schedule_options.length ? (
+                  <div className="schedule-list">
+                    {travelStatus.schedule_options.map((option) => (
+                      <button
+                        type="button"
+                        className={
+                          option.is_selected ? "schedule-option active" : "schedule-option"
+                        }
+                        key={`${option.trip_id}:${option.departure_time}`}
+                        onClick={() => selectScheduleOption(option)}
+                      >
+                        <div>
+                          <span>{formatScheduleRelation(option.relation)}</span>
+                          <strong>{formatTripTime(option.departure_time)}</strong>
+                        </div>
+                        <div>
+                          <span>Arrive</span>
+                          <strong>{formatTripTime(option.estimated_arrival_time)}</strong>
+                        </div>
+                        <div>
+                          <span>{formatTravelDuration(option.travel_minutes)}</span>
+                          <strong>{formatScheduleOffset(option.minutes_from_request)}</strong>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-state">
+                    {travelStatusLoading
+                      ? "Checking available trips around the selected time."
+                      : travelStatus?.service_state === "no_service"
+                        ? "No scheduled trips are shown because this service is reported as not running for the selected time."
+                        : "No schedule options were returned for the selected 24-hour window."}
+                  </p>
+                )}
+              </div>
 
               <div className="route-suggestion-board" aria-live="polite">
                 <div className="arrival-board-heading">
@@ -2832,66 +2761,6 @@ function App() {
                 ) : null}
               </div>
 
-              {!selectedRouteIsRail ? (
-              <div className="arrival-board" aria-live="polite">
-                <div className="arrival-board-heading">
-                  <strong>
-                    {formatModeLabel(selectedRouteMode)} {selectedRouteLine}
-                  </strong>
-                  <span>{selectedRouteStop || "Select a stop"}</span>
-                </div>
-                {travelStatus?.service_state === "no_service" ? (
-                  <p className="empty-state">
-                    No arrival or departure is available for this line at the selected
-                    time because MTA reports it is not in service.
-                  </p>
-                ) : arrivalLoading ? (
-                  <p className="muted">Checking arrivals and departures...</p>
-                ) : null}
-                {travelStatus?.service_state !== "no_service" && !arrivalLoading && arrivalBoard ? (
-                  <>
-                    {arrivalBoard.arrivals.length > 0 ? (
-                      <div className="direction-card-grid">
-                        {directionCards.map((card) => (
-                          <section className={card.className} key={card.id}>
-                            <div className="direction-card-heading">
-                              <span>{card.detail}</span>
-                              <strong>{card.title}</strong>
-                            </div>
-                            <div className="arrival-list">
-                              {card.arrivals.slice(0, 4).map((arrival) => (
-                                <div
-                                  className="arrival-row"
-                                  key={`${arrival.trip_id}:${arrival.stop_id}:${arrival.arrival_time}`}
-                                >
-                                  <div>
-                                    <strong>{formatMinutesUntil(arrival.minutes_until)}</strong>
-                                    <span>Arrival / departure</span>
-                                  </div>
-                                  <time dateTime={arrival.arrival_time}>
-                                    {formatArrivalTime(arrival.arrival_time)}
-                                  </time>
-                                </div>
-                              ))}
-                              {card.arrivals.length === 0 ? (
-                                <p className="empty-state">
-                                  No upcoming trips toward {card.terminal} right now.
-                                </p>
-                              ) : null}
-                            </div>
-                          </section>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="empty-state">{arrivalBoard.message}</p>
-                    )}
-                    {arrivalBoard.arrivals.length > 0 ? (
-                      <p className="muted helper-copy">{arrivalBoard.message}</p>
-                    ) : null}
-                  </>
-                ) : null}
-              </div>
-              ) : null}
             </div>
           </div>
         </article>
@@ -3375,6 +3244,7 @@ function App() {
           </div>
         </article>
       </section>
+      <p className="app-copyright">Copyright &copy; 2026 Jazmyn Nathaniel</p>
     </main>
   );
 }

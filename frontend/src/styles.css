@@ -635,6 +635,15 @@ p {
   gap: 1rem;
 }
 
+.app-copyright {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: center;
+}
+
 .topbar {
   display: flex;
   justify-content: space-between;
@@ -1244,7 +1253,7 @@ p {
 .travel-time-panel,
 .travel-status-card,
 .route-suggestion-board,
-.rail-schedule-panel,
+.schedule-panel,
 .rail-fare-card {
   display: grid;
   gap: 0.75rem;
@@ -1407,26 +1416,26 @@ p {
   border-color: rgba(160, 180, 197, 0.2);
 }
 
-.rail-schedule-panel {
+.schedule-panel {
   border-color: rgba(78, 196, 161, 0.26);
   background: rgba(78, 196, 161, 0.07);
 }
 
-.rail-schedule-list {
+.schedule-list {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.45rem;
   max-height: 420px;
   overflow-y: auto;
   padding-right: 0.2rem;
 }
 
-.rail-schedule-option {
+.schedule-option {
   display: grid;
-  grid-template-columns: minmax(84px, 1.1fr) minmax(84px, 1fr) minmax(88px, 1.1fr);
-  gap: 0.55rem;
+  grid-template-columns: minmax(72px, 0.95fr) minmax(70px, 0.85fr) minmax(76px, 1fr);
+  gap: 0.45rem;
   width: 100%;
   min-height: 72px;
-  padding: 0.75rem;
+  padding: 0.62rem;
   border-radius: 8px;
   border: 1px solid rgba(160, 180, 197, 0.16);
   background: rgba(5, 14, 23, 0.42);
@@ -1434,35 +1443,37 @@ p {
   text-align: left;
 }
 
-.rail-schedule-option.active {
+.schedule-option.active {
   border-color: rgba(78, 196, 161, 0.56);
   background: rgba(78, 196, 161, 0.16);
 }
 
-.rail-schedule-option:hover {
+.schedule-option:hover {
   transform: translateY(-1px);
   border-color: rgba(78, 196, 161, 0.48);
 }
 
-.rail-schedule-option div {
+.schedule-option div {
   display: grid;
   align-content: center;
-  gap: 0.2rem;
+  gap: 0.16rem;
   min-width: 0;
 }
 
-.rail-schedule-option span {
+.schedule-option span {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 900;
-  line-height: 1.15;
-  text-transform: uppercase;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+  text-transform: none;
 }
 
-.rail-schedule-option strong {
+.schedule-option strong {
   color: var(--ink);
-  font-size: 0.98rem;
-  line-height: 1.18;
+  font-size: 0.9rem;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
 }
 
 .route-suggestion-list {
@@ -2179,11 +2190,11 @@ p {
     grid-template-columns: 1fr;
   }
 
-  .rail-schedule-list {
+  .schedule-list {
     max-height: 360px;
   }
 
-  .rail-schedule-option {
+  .schedule-option {
     grid-template-columns: 1fr;
   }
 

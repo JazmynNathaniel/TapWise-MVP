@@ -69,7 +69,7 @@ export type ArrivalResponse = {
   arrivals: Arrival[];
 };
 
-export type RailScheduleOption = {
+export type TravelScheduleOption = {
   transit_mode: TransitMode;
   line: string;
   route_id: string;
@@ -124,7 +124,7 @@ export type TravelStatus = {
   estimated_arrival_time: string | null;
   travel_minutes: number;
   arrives_by_requested_time: boolean | null;
-  schedule_options: RailScheduleOption[];
+  schedule_options: TravelScheduleOption[];
   generated_at: string;
   message: string;
   arrivals_status: ArrivalResponse["status"];
@@ -153,7 +153,7 @@ export type RouteSuggestion = {
   estimated_arrival_time: string | null;
   travel_minutes: number;
   arrives_by_requested_time: boolean | null;
-  schedule_options: RailScheduleOption[];
+  schedule_options: TravelScheduleOption[];
   message: string;
   next_arrivals: Arrival[];
   alerts: ServiceAlert[];

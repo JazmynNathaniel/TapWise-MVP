@@ -32,9 +32,10 @@ BLOCKING_ALERT_KEYWORDS = (
 RAIL_MODES = {"lirr", "metro_north"}
 OMNY_MODES = {"subway", "bus"}
 TRAVEL_TIME_MODES = {"leave_at", "arrive_by"}
+SCHEDULE_BEFORE_HOURS = 2
+SCHEDULE_AFTER_HOURS = 24
+SCHEDULE_LIMIT = 128
 RAIL_SCHEDULE_BEFORE_HOURS = 12
-RAIL_SCHEDULE_AFTER_HOURS = 24
-RAIL_SCHEDULE_LIMIT = 128
 
 
 def _user_id() -> int:
@@ -111,22 +112,18 @@ def _schedule_window(
     requested_time: datetime,
     travel_minutes: int,
 ) -> tuple[datetime, datetime]:
-    if mode not in RAIL_MODES:
-        search_time = _departure_search_time(
-            time_mode=time_mode,
-            requested_time=requested_time,
-            travel_minutes=travel_minutes,
-        )
-        return search_time, search_time + timedelta(hours=2)
+    before_hours = (
+        RAIL_SCHEDULE_BEFORE_HOURS if mode in RAIL_MODES else SCHEDULE_BEFORE_HOURS
+    )
 
     if time_mode == "arrive_by":
         start_time = requested_time - timedelta(
-            hours=RAIL_SCHEDULE_BEFORE_HOURS, minutes=travel_minutes
+            hours=before_hours, minutes=travel_minutes
         )
     else:
-        start_time = requested_time - timedelta(hours=RAIL_SCHEDULE_BEFORE_HOURS)
+        start_time = requested_time - timedelta(hours=before_hours)
 
-    return start_time, requested_time + timedelta(hours=RAIL_SCHEDULE_AFTER_HOURS)
+    return start_time, requested_time + timedelta(hours=SCHEDULE_AFTER_HOURS)
 
 
 def _arrival_datetime(arrival: dict) -> datetime | None:
@@ -359,25 +356,25 @@ def _travel_status_message(
             f"No arrival or departure is available from {origin} to {destination} "
             f"because MTA reports this service is not running: {reason}"
         )
-    if mode in RAIL_MODES and schedule_options:
+    if schedule_options:
         departure_time = timing.get("estimated_departure_time")
         arrival_time = timing.get("estimated_arrival_time")
         if time_mode == "arrive_by":
             if timing.get("arrives_by_requested_time"):
                 return (
-                    f"A scheduled train can meet your arrive-by time from {origin} "
-                    f"to {destination}. Nearby railroad schedule options are shown below."
+                    f"A departure can meet your arrive-by time from {origin} "
+                    f"to {destination}. Nearby schedule options are shown below."
                 )
             if departure_time and arrival_time:
                 return (
-                    f"No returned train arrives by the selected time. TapWise found "
-                    f"the closest scheduled option from {origin} to {destination}; "
-                    "nearby trains are shown so you can choose another time."
+                    f"No returned trip arrives by the selected time. TapWise found "
+                    f"the closest option from {origin} to {destination}; nearby "
+                    "departures are shown so you can choose another time."
                 )
         if departure_time and arrival_time:
             return (
-                f"TapWise found scheduled railroad options from {origin} to "
-                f"{destination} around your selected time, including trains before "
+                f"TapWise found schedule options from {origin} to "
+                f"{destination} around your selected time, including trips before "
                 "and after it."
             )
     if service_state == "in_service":
@@ -645,7 +642,6 @@ def travel_status():
     origin = (request.args.get("origin") or "").strip()
     destination = (request.args.get("destination") or "").strip()
     time_mode = _parse_time_mode(request.args.get("time_mode"))
-    limit = min(12, max(1, request.args.get("limit", 6, type=int)))
 
     if not mode or not line or not origin or not destination:
         return jsonify({"error": "Please choose a service, route, origin, and destination."}), 400
@@ -698,9 +694,9 @@ def travel_status():
             mode=mode,
             line=line,
             stop_name=origin,
-            limit=RAIL_SCHEDULE_LIMIT if mode in RAIL_MODES else limit,
-            reference_time=schedule_start if mode in RAIL_MODES else search_time,
-            end_time=schedule_end if mode in RAIL_MODES else None,
+            limit=SCHEDULE_LIMIT,
+            reference_time=schedule_start,
+            end_time=schedule_end,
         )
         timing = _build_trip_timing(
             arrivals=arrivals_payload.get("arrivals", []),
@@ -724,7 +720,7 @@ def travel_status():
             and not timing.get("arrives_by_requested_time")
         ):
             service_state = "no_departures"
-        if mode in RAIL_MODES and arrivals_payload.get("status") == "ok":
+        if arrivals_payload.get("status") == "ok":
             schedule_options = _build_schedule_options(
                 arrivals=arrivals_payload.get("arrivals", []),
                 time_mode=time_mode,
@@ -868,13 +864,9 @@ def route_suggestions():
                     mode=mode,
                     line=line,
                     stop_name=origin,
-                    limit=RAIL_SCHEDULE_LIMIT
-                    if mode in RAIL_MODES
-                    else 12
-                    if time_mode == "arrive_by"
-                    else 3,
-                    reference_time=schedule_start if mode in RAIL_MODES else search_time,
-                    end_time=schedule_end if mode in RAIL_MODES else None,
+                    limit=SCHEDULE_LIMIT,
+                    reference_time=schedule_start,
+                    end_time=schedule_end,
                 )
                 arrivals = arrival_payload.get("arrivals", [])
                 timing = _build_trip_timing(
@@ -900,7 +892,7 @@ def route_suggestions():
                 ):
                     service_state = "no_departures"
                 schedule_options = []
-                if mode in RAIL_MODES and arrival_payload.get("status") == "ok":
+                if arrival_payload.get("status") == "ok":
                     schedule_options = _build_schedule_options(
                         arrivals=arrivals,
                         time_mode=time_mode,
