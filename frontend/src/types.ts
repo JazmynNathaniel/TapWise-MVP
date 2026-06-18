@@ -1,6 +1,6 @@
 export type User = {
   id: number;
-  email: string;
+  email: string | null;
   username: string;
 };
 
@@ -13,8 +13,6 @@ export type PaymentMethod = {
   id: number;
   label: string;
   payment_type: string;
-  identifier_code: string;
-  masked_details: string;
   created_at: string;
 };
 

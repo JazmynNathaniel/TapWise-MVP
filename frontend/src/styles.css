@@ -599,6 +599,22 @@ p {
   border: 1px solid rgba(160, 180, 197, 0.16);
 }
 
+.link-button {
+  width: fit-content;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  color: var(--brand-strong);
+  font-weight: 800;
+  padding: 0;
+  text-align: left;
+}
+
+.link-button:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
 .mode-toggle button.active,
 .theme-toggle button.active,
 .selector.active,

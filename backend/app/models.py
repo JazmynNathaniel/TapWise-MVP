@@ -7,8 +7,8 @@ class User(db.Model):
     __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
-    username = db.Column(db.String(40), nullable=False, default="")
+    email = db.Column(db.String(255), unique=True, nullable=True, index=True)
+    username = db.Column(db.String(40), unique=True, nullable=False, default="", index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(
         db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -25,8 +25,15 @@ class User(db.Model):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    password_reset_tokens = db.relationship(
+        "PasswordResetToken",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
-    def __init__(self, email: str, username: str, password_hash: str) -> None:
+    def __init__(
+        self, username: str, password_hash: str, email: str | None = None
+    ) -> None:
         self.email = email
         self.username = username
         self.password_hash = password_hash
@@ -40,7 +47,6 @@ class PaymentMethod(db.Model):
     label = db.Column(db.String(120), nullable=False)
     payment_type = db.Column(db.String(40), nullable=False, default="other")
     cardholder_name = db.Column(db.String(120), nullable=False, default="")
-    identifier_code = db.Column(db.String(4), nullable=False, default="0000")
     created_at = db.Column(
         db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -59,13 +65,11 @@ class PaymentMethod(db.Model):
         label: str,
         payment_type: str = "other",
         cardholder_name: str = "",
-        identifier_code: str = "0000",
     ) -> None:
         self.user_id = user_id
         self.label = label
         self.payment_type = payment_type
         self.cardholder_name = cardholder_name
-        self.identifier_code = identifier_code
 
 
 class Ride(db.Model):
@@ -163,4 +167,26 @@ class TokenBlocklist(db.Model):
 
     def __init__(self, jti: str, expires_at: datetime) -> None:
         self.jti = jti
+        self.expires_at = expires_at
+
+
+class PasswordResetToken(db.Model):
+    __tablename__ = "password_reset_tokens"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False, index=True)
+    used_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    created_at = db.Column(
+        db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    user = db.relationship("User", back_populates="password_reset_tokens")
+
+    def __init__(self, user_id: int, token_hash: str, expires_at: datetime) -> None:
+        self.user_id = user_id
+        self.token_hash = token_hash
         self.expires_at = expires_at

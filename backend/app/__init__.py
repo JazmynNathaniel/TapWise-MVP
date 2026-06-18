@@ -8,7 +8,7 @@ from werkzeug.exceptions import HTTPException
 
 from .config import Config
 from .extensions import cors, db, jwt
-from .models import TokenBlocklist, User
+from .models import PasswordResetToken, TokenBlocklist, User
 from .routes.auth import auth_bp
 from .routes.insights import insights_bp
 from .routes.payment_methods import payment_methods_bp
@@ -50,10 +50,13 @@ def _parse_allowed_origins(raw_value: str | None) -> set[str]:
     }
 
 
-def _generate_unique_username(email: str, existing_usernames: set[str]) -> str:
-    local_part = email.split("@", 1)[0].strip().lower()
+def _generate_unique_username(
+    source_value: str | None, existing_usernames: set[str], fallback_id: int | None = None
+) -> str:
+    local_part = (source_value or "").split("@", 1)[0].strip().lower()
+    fallback = f"tapwise_user_{fallback_id}" if fallback_id else "tapwise_user"
     base = re.sub(r"[^a-z0-9_]+", "_",
-                  local_part).strip("_")[:24] or "tapwise_user"
+                  local_part).strip("_")[:24] or fallback[:24]
     candidate = base
     suffix = 2
 
@@ -65,10 +68,42 @@ def _generate_unique_username(email: str, existing_usernames: set[str]) -> str:
     return candidate
 
 
+def _sqlite_rebuild_users_table_with_nullable_email() -> None:
+    db.session.execute(text("PRAGMA foreign_keys=OFF"))
+    db.session.execute(text("DROP TABLE IF EXISTS users_rebuild"))
+    db.session.execute(
+        text(
+            """
+            CREATE TABLE users_rebuild (
+              id INTEGER NOT NULL PRIMARY KEY,
+              email VARCHAR(255),
+              username VARCHAR(40) NOT NULL DEFAULT '',
+              password_hash VARCHAR(255) NOT NULL,
+              created_at DATETIME
+            )
+            """
+        )
+    )
+    db.session.execute(
+        text(
+            """
+            INSERT INTO users_rebuild (id, email, username, password_hash, created_at)
+            SELECT id, email, username, password_hash, created_at
+            FROM users
+            """
+        )
+    )
+    db.session.execute(text("DROP TABLE users"))
+    db.session.execute(text("ALTER TABLE users_rebuild RENAME TO users"))
+    db.session.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users (email)"))
+    db.session.commit()
+    db.session.execute(text("PRAGMA foreign_keys=ON"))
+
+
 def _ensure_user_columns() -> None:
     inspector = inspect(db.engine)
-    existing_columns = {column["name"]
-                        for column in inspector.get_columns("users")}
+    columns = inspector.get_columns("users")
+    existing_columns = {column["name"] for column in columns}
     statements = []
 
     if "username" not in existing_columns:
@@ -81,22 +116,45 @@ def _ensure_user_columns() -> None:
     if statements:
         db.session.commit()
 
-    if "username" not in existing_columns:
-        users = User.query.order_by(User.id.asc()).all()
-        existing_usernames = {
-            user.username.strip().lower() for user in users if user.username.strip()
-        }
-        updated = False
-
-        for user in users:
-            if user.username.strip():
-                continue
-            user.username = _generate_unique_username(
-                user.email, existing_usernames)
-            updated = True
-
-        if updated:
+    columns = inspect(db.engine).get_columns("users")
+    email_column = next(
+        (column for column in columns if column["name"] == "email"),
+        None,
+    )
+    if email_column and not email_column.get("nullable", True):
+        if db.engine.dialect.name == "postgresql":
+            db.session.execute(text("ALTER TABLE users ALTER COLUMN email DROP NOT NULL"))
             db.session.commit()
+        elif db.engine.dialect.name == "sqlite":
+            _sqlite_rebuild_users_table_with_nullable_email()
+
+    users = User.query.order_by(User.id.asc()).all()
+    existing_usernames: set[str] = set()
+    updated = False
+
+    for user in users:
+        username = (user.username or "").strip().lower()
+        if username and username not in existing_usernames:
+            if user.username != username:
+                user.username = username
+                updated = True
+            existing_usernames.add(username)
+            continue
+
+        user.username = _generate_unique_username(
+            user.email,
+            existing_usernames,
+            user.id,
+        )
+        updated = True
+
+    if updated:
+        db.session.commit()
+
+    db.session.execute(
+        text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_username_unique ON users (username)")
+    )
+    db.session.commit()
 
 
 def _ensure_payment_method_columns() -> None:
@@ -113,25 +171,23 @@ def _ensure_payment_method_columns() -> None:
         statements.append(
             "ALTER TABLE payment_methods ADD COLUMN cardholder_name VARCHAR(120) NOT NULL DEFAULT ''"
         )
-    if "identifier_code" not in existing_columns:
-        statements.append(
-            "ALTER TABLE payment_methods ADD COLUMN identifier_code VARCHAR(4) NOT NULL DEFAULT '0000'"
-        )
 
     for statement in statements:
         db.session.execute(text(statement))
     if statements:
         db.session.commit()
 
-    if "identifier_code" not in existing_columns and "last4" in existing_columns:
-        db.session.execute(
-            text(
-                "UPDATE payment_methods SET identifier_code = last4 "
-                "WHERE (identifier_code = '0000' OR identifier_code = '') "
-                "AND last4 <> ''"
-            )
-        )
-        db.session.commit()
+    if "identifier_code" in existing_columns:
+        try:
+            if db.engine.dialect.name == "postgresql":
+                db.session.execute(
+                    text("ALTER TABLE payment_methods DROP COLUMN IF EXISTS identifier_code")
+                )
+            elif db.engine.dialect.name == "sqlite":
+                db.session.execute(text("ALTER TABLE payment_methods DROP COLUMN identifier_code"))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
 
 def _ensure_ride_columns() -> None:
@@ -166,6 +222,13 @@ def _ensure_ride_columns() -> None:
 def _cleanup_expired_token_blocklist() -> None:
     TokenBlocklist.query.filter(
         TokenBlocklist.expires_at <= datetime.now(timezone.utc)
+    ).delete()
+    db.session.commit()
+
+
+def _cleanup_expired_password_reset_tokens() -> None:
+    PasswordResetToken.query.filter(
+        PasswordResetToken.expires_at <= datetime.now(timezone.utc)
     ).delete()
     db.session.commit()
 
@@ -262,5 +325,6 @@ def create_app() -> Flask:
         _ensure_payment_method_columns()
         _ensure_ride_columns()
         _cleanup_expired_token_blocklist()
+        _cleanup_expired_password_reset_tokens()
 
     return app

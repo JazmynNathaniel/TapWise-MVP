@@ -5,6 +5,7 @@ TapWise is an MVP web app for NYC transit riders. It helps users track OMNY-styl
 ## Current Features
 
 - Fare tracking by card, OMNY card, mobile wallet, or custom payment method label
+- Username-based accounts with optional recovery email only
 - 7-day OMNY fare-cap windows per payment method
 - Best-next-tap recommendations based on fare-cap progress and active transfers
 - Free bus-to-train and train-to-bus transfer tracking
@@ -50,6 +51,8 @@ frontend/
 - `DATABASE_URL`
 - `CLIENT_ORIGIN`
 - `APP_ENV=production` for deployed backend services
+- `SMTP_HOST` and `SMTP_FROM` optional for password reset emails
+- `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_USE_TLS` optional SMTP settings
 - `MTA_API_KEY` optional for MTA feeds that require a key
 - `MTA_BUS_TIME_API_KEY` required for live bus arrivals and bus service alerts
 
@@ -124,6 +127,7 @@ custom `vercel.json` rewrite is not required right now.
   - `DATABASE_URL`
   - `CLIENT_ORIGIN=https://<your-vercel-domain>`
   - `APP_ENV=production`
+  - `SMTP_HOST` and `SMTP_FROM` if you want password reset emails enabled
   - `MTA_BUS_TIME_API_KEY`
   - `MTA_API_KEY` if needed for your MTA account/feed access
 
@@ -151,6 +155,8 @@ If your editor still shows missing Flask package imports, re-select the interpre
 
 - `POST /api/auth/register`
 - `POST /api/auth/login`
+- `POST /api/auth/password-reset/request`
+- `POST /api/auth/password-reset/confirm`
 - `POST /api/auth/logout`
 - `DELETE /api/auth/profile`
 - `GET /api/payment-methods`
@@ -197,4 +203,6 @@ Compatibility aliases were added for the typo variants from the spec (`payment_m
 - Login, registration, selected write actions, and realtime transit calls are rate limited.
 - Frontend actions use one in-flight request at a time, timeout slow responses, and briefly pause retry buttons after failed requests.
 - Logout and profile deletion revoke the active JWT until it expires.
+- Signup and login use usernames. Email is optional and used only for password reset emails.
+- Password reset sends a short-lived reset link; TapWise never emails or stores recoverable passwords.
 - Registration passwords require at least 8 characters, one capital letter, one number, one special character from `!@#$%^&*_-`, and no spaces.

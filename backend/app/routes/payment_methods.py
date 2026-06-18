@@ -18,13 +18,10 @@ ALLOWED_PAYMENT_TYPES = {
 
 
 def _serialize_payment_method(payment_method: PaymentMethod) -> dict:
-    identifier_code = payment_method.identifier_code
     return {
         "id": payment_method.id,
         "label": payment_method.label,
         "payment_type": payment_method.payment_type,
-        "identifier_code": identifier_code,
-        "masked_details": f"{payment_method.payment_type.replace('_', ' ').title()} code {identifier_code}",
         "created_at": payment_method.created_at.isoformat(),
     }
 
@@ -49,21 +46,17 @@ def create_payment_method():
     payload = request.get_json() or {}
     label = (payload.get("label") or "").strip()
     payment_type = (payload.get("payment_type") or "").strip().lower()
-    identifier_code = (payload.get("identifier_code") or "").strip()
 
     if not label:
         return jsonify({"error": "Please enter a payment method name."}), 400
     if payment_type not in ALLOWED_PAYMENT_TYPES:
         return jsonify({"error": "Please choose a payment type."}), 400
-    if len(identifier_code) != 4 or not identifier_code.isdigit():
-        return jsonify({"error": "Please enter a 4-digit code."}), 400
 
     payment_method = PaymentMethod(
         user_id=user_id,
         label=label,
         payment_type=payment_type,
         cardholder_name="",
-        identifier_code=identifier_code,
     )
     db.session.add(payment_method)
     db.session.commit()

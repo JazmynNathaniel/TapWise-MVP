@@ -34,7 +34,6 @@ const REQUEST_TIMEOUT_MS = 10000;
 type PaymentMethodPayload = {
   label: string;
   payment_type: string;
-  identifier_code: string;
 };
 
 type RidePayload = {
@@ -56,6 +55,14 @@ type NotificationPreferencePayload = {
 function friendlyErrorMessage(path: string, status: number) {
   if (path.startsWith("/auth/login") && (status === 400 || status === 401)) {
     return "Incorrect login information.";
+  }
+  if (path.startsWith("/auth/password-reset")) {
+    if (status === 400) {
+      return "That password reset link is invalid or expired.";
+    }
+    if (status === 429) {
+      return "Please wait a moment before trying password recovery again.";
+    }
   }
   if (path.startsWith("/auth/register")) {
     if (status === 409) {
@@ -119,15 +126,28 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
 
 export const api = {
   register(username: string, email: string, password: string) {
+    const body = email ? { username, email, password } : { username, password };
     return request<AuthResponse>("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ username, email, password })
+      body: JSON.stringify(body)
     });
   },
-  login(email: string, password: string) {
+  login(username: string, password: string) {
     return request<AuthResponse>("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ username, password })
+    });
+  },
+  requestPasswordReset(username: string) {
+    return request<{ message: string }>("/auth/password-reset/request", {
+      method: "POST",
+      body: JSON.stringify({ username })
+    });
+  },
+  confirmPasswordReset(username: string, token: string, password: string) {
+    return request<{ message: string }>("/auth/password-reset/confirm", {
+      method: "POST",
+      body: JSON.stringify({ username, token, password })
     });
   },
   logout(token: string) {

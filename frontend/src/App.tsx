@@ -119,7 +119,7 @@ const ROUTE_PRIORITY_OPTIONS: Array<{
   }
 ];
 
-type AuthMode = "login" | "register";
+type AuthMode = "login" | "register" | "recover" | "reset";
 type ThemeMode = "dark" | "light";
 type DashboardTab = "fare" | "travel" | "alerts" | "payments" | "rides" | "settings";
 type NotificationFrequency = "as_it_happens" | "daily" | "weekly";
@@ -128,7 +128,6 @@ type SoundOption = "service_change" | "travel_update" | "soft" | "bright" | "non
 type PaymentFormState = {
   label: string;
   paymentType: string;
-  identifierCode: string;
 };
 
 type RideFormState = {
@@ -245,8 +244,7 @@ function getTransferNoticeKey(notice: ActiveTransferNotice) {
 
 const emptyPaymentForm: PaymentFormState = {
   label: "",
-  paymentType: "visa",
-  identifierCode: ""
+  paymentType: "visa"
 };
 
 const emptyRideForm: RideFormState = {
@@ -781,33 +779,25 @@ function ThemeToggle({
   );
 }
 
-function deriveUsernameFromEmail(email: string) {
-  return email.split("@", 1)[0] || "there";
-}
-
 function hydrateStoredUser(rawValue: string | null): User | null {
   if (!rawValue) {
     return null;
   }
 
-  const parsed = JSON.parse(rawValue) as Partial<User>;
-  if (!parsed.id || !parsed.email) {
+  try {
+    const parsed = JSON.parse(rawValue) as Partial<User>;
+    if (!parsed.id || !parsed.username) {
+      return null;
+    }
+
+    return {
+      id: parsed.id,
+      email: typeof parsed.email === "string" ? parsed.email : null,
+      username: parsed.username
+    };
+  } catch {
     return null;
   }
-
-  return {
-    id: parsed.id,
-    email: parsed.email,
-    username: parsed.username || deriveUsernameFromEmail(parsed.email)
-  };
-}
-
-function digitsOnly(value: string) {
-  return value.replace(/\D/g, "");
-}
-
-function format4DigitCode(value: string) {
-  return digitsOnly(value).slice(0, 4);
 }
 
 function formatLocalDateInput(value: Date) {
@@ -837,9 +827,6 @@ function validatePaymentForm(form: PaymentFormState) {
   }
   if (!form.paymentType) {
     return "Payment type is required.";
-  }
-  if (form.identifierCode.length !== 4) {
-    return "Identifier code must be exactly 4 numbers.";
   }
 
   return null;
@@ -872,14 +859,66 @@ function validatePassword(value: string) {
   return null;
 }
 
+function validateUsername(value: string) {
+  if (value.length < 3 || value.length > 30) {
+    return "Username must be between 3 and 30 characters.";
+  }
+  if (/[^a-z0-9_]/.test(value)) {
+    return "Username may contain only letters, numbers, and underscores.";
+  }
+  return null;
+}
+
+function getAuthTitle(mode: AuthMode) {
+  if (mode === "register") {
+    return "Create your tracker";
+  }
+  if (mode === "recover") {
+    return "Recover your account";
+  }
+  if (mode === "reset") {
+    return "Reset your password";
+  }
+  return "Welcome back";
+}
+
+function getAuthButtonLabel(mode: AuthMode, isSubmitting: boolean) {
+  if (isSubmitting) {
+    if (mode === "register") {
+      return "Creating...";
+    }
+    if (mode === "recover") {
+      return "Sending...";
+    }
+    if (mode === "reset") {
+      return "Resetting...";
+    }
+    return "Signing in...";
+  }
+  if (mode === "register") {
+    return "Create account";
+  }
+  if (mode === "recover") {
+    return "Send reset link";
+  }
+  if (mode === "reset") {
+    return "Reset password";
+  }
+  return "Sign in";
+}
+
 function App() {
+  const initialResetParams = new URLSearchParams(window.location.search);
+  const initialResetToken = initialResetParams.get("reset_token") ?? "";
+  const initialResetUsername = initialResetParams.get("username") ?? "";
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
   const [settings, setSettings] = useState<AppSettings>(() => hydrateStoredSettings());
   const [dashboardTab, setDashboardTab] = useState<DashboardTab>("fare");
-  const [mode, setMode] = useState<AuthMode>("register");
-  const [username, setUsername] = useState("tapwise_rider");
-  const [email, setEmail] = useState("demo@tapwise.app");
-  const [password, setPassword] = useState("Password123!");
+  const [mode, setMode] = useState<AuthMode>(initialResetToken ? "reset" : "register");
+  const [username, setUsername] = useState(initialResetUsername);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [resetToken, setResetToken] = useState(initialResetToken);
   const [token, setToken] = useState<string | null>(() => safeStorageGetItem(TOKEN_KEY));
   const [user, setUser] = useState<User | null>(() => hydrateStoredUser(safeStorageGetItem(USER_KEY)));
   const [hasAuthenticatedBefore, setHasAuthenticatedBefore] = useState(
@@ -924,7 +963,6 @@ function App() {
   const [rideTimingMode, setRideTimingMode] = useState<RideTimingMode>("now");
   const [manualRideDate, setManualRideDate] = useState(() => createManualRideDateTime().date);
   const [manualRideTime, setManualRideTime] = useState(() => createManualRideDateTime().time);
-  const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authNotice, setAuthNotice] = useState("");
   const [appError, setAppError] = useState("");
@@ -1648,7 +1686,16 @@ function App() {
       return;
     }
 
-    if (mode === "register") {
+    const normalizedUsername = username.trim().toLowerCase();
+    const recoveryEmail = email.trim().toLowerCase();
+    const usernameError = validateUsername(normalizedUsername);
+    if (usernameError) {
+      setAuthNotice("");
+      setAuthError(usernameError);
+      return;
+    }
+
+    if (mode === "register" || mode === "reset") {
       const passwordError = validatePassword(password);
       if (passwordError) {
         setAuthNotice("");
@@ -1661,10 +1708,32 @@ function App() {
     try {
       setAuthError("");
       setAuthNotice("");
+      if (mode === "recover") {
+        const response = await api.requestPasswordReset(normalizedUsername);
+        setAuthNotice(response.message);
+        return;
+      }
+      if (mode === "reset") {
+        if (!resetToken.trim()) {
+          setAuthError("Password reset token is required.");
+          return;
+        }
+        const response = await api.confirmPasswordReset(
+          normalizedUsername,
+          resetToken.trim(),
+          password
+        );
+        setAuthNotice(`${response.message} Sign in with your new password.`);
+        setMode("login");
+        setPassword("");
+        setResetToken("");
+        window.history.replaceState(null, "", window.location.pathname);
+        return;
+      }
       const response =
         mode === "register"
-          ? await api.register(username.trim().toLowerCase(), email, password)
-          : await api.login(email, password);
+          ? await api.register(normalizedUsername, recoveryEmail, password)
+          : await api.login(normalizedUsername, password);
       const firstAuthenticatedSession = !hasAuthenticatedBefore;
 
       safeStorageSetItem(TOKEN_KEY, response.token);
@@ -1917,14 +1986,12 @@ function App() {
       setAppError("");
       const createdMethod = await api.createPaymentMethod(token, {
         label: paymentForm.label.trim(),
-        payment_type: paymentForm.paymentType,
-        identifier_code: paymentForm.identifierCode
+        payment_type: paymentForm.paymentType
       });
 
       setPaymentMethods((current) => [...current, createdMethod]);
       setSelectedMethodId(createdMethod.id);
       setPaymentForm(emptyPaymentForm);
-      setShowPaymentDetails(false);
       await loadDashboard(token);
     } catch (error) {
       setAppError((error as Error).message);
@@ -2048,7 +2115,7 @@ function App() {
           <div className="auth-panel-top">
             <div className="auth-panel-heading">
               <p className="eyebrow">Account</p>
-              <h2>{mode === "register" ? "Create your tracker" : "Welcome back"}</h2>
+              <h2>{getAuthTitle(mode)}</h2>
             </div>
             <ThemeToggle theme={theme} onThemeChange={setTheme} />
           </div>
@@ -2057,63 +2124,95 @@ function App() {
             <div className="banner notice browser-notice">{browserSupportNotice}</div>
           ) : null}
 
-          <div className="mode-toggle">
-            <button
-              type="button"
-              className={mode === "register" ? "active" : ""}
-              onClick={() => setMode("register")}
-            >
-              Register
-            </button>
-            <button
-              type="button"
-              className={mode === "login" ? "active" : ""}
-              onClick={() => setMode("login")}
-            >
-              Login
-            </button>
-          </div>
+          {mode === "register" || mode === "login" ? (
+            <div className="mode-toggle">
+              <button
+                type="button"
+                className={mode === "register" ? "active" : ""}
+                onClick={() => setMode("register")}
+              >
+                Register
+              </button>
+              <button
+                type="button"
+                className={mode === "login" ? "active" : ""}
+                onClick={() => setMode("login")}
+              >
+                Login
+              </button>
+            </div>
+          ) : null}
 
           <form onSubmit={handleAuthSubmit} className="stack">
-            {mode === "register" ? (
-              <label>
-                Username
-                <input
-                  value={username}
-                  onChange={(event) => setUsername(event.target.value)}
-                  placeholder="tapwise_rider"
-                  required
-                />
-                <span className="field-helper">
-                  Your username does not need to be your real name. Usernames are
-                  unique and can only belong to one TapWise account.
-                </span>
-              </label>
-            ) : null}
             <label>
-              Email
+              Username
               <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                placeholder="tapwise_rider"
                 required
               />
               {mode === "register" ? (
                 <span className="field-helper">
-                  Use at least 8 characters with one capital letter, one number, and one special character
-                  (!@#$%^&*_-). Spaces are not allowed.
+                  Usernames are unique and do not need to be your real name.
                 </span>
               ) : null}
             </label>
+            {mode === "register" ? (
+              <label>
+                Recovery email
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="optional"
+                />
+                <span className="field-helper">
+                  Optional. Used only for password recovery.
+                </span>
+              </label>
+            ) : null}
+            {mode === "reset" ? (
+              <label>
+                Reset token
+                <input
+                  value={resetToken}
+                  onChange={(event) => setResetToken(event.target.value)}
+                  required
+                />
+              </label>
+            ) : null}
+            {mode !== "recover" ? (
+              <label>
+                {mode === "reset" ? "New password" : "Password"}
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                />
+                {mode === "register" || mode === "reset" ? (
+                  <span className="field-helper">
+                    Use at least 8 characters with one capital letter, one number, and one special character
+                    (!@#$%^&*_-). Spaces are not allowed.
+                  </span>
+                ) : null}
+              </label>
+            ) : null}
+            {mode === "login" ? (
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => {
+                  setMode("recover");
+                  setAuthError("");
+                  setAuthNotice("");
+                  setPassword("");
+                }}
+              >
+                Forgot password?
+              </button>
+            ) : null}
             {authNotice ? <p className="notice">{authNotice}</p> : null}
             {authError ? <p className="error">{authError}</p> : null}
             <button
@@ -2121,14 +2220,23 @@ function App() {
               className="primary-button"
               disabled={authSubmitting || authRetryLocked}
             >
-              {authSubmitting
-                ? mode === "register"
-                  ? "Creating..."
-                  : "Signing in..."
-                : mode === "register"
-                  ? "Create account"
-                  : "Sign in"}
+              {getAuthButtonLabel(mode, authSubmitting)}
             </button>
+            {mode === "recover" || mode === "reset" ? (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setMode("login");
+                  setAuthError("");
+                  setPassword("");
+                  setResetToken("");
+                  window.history.replaceState(null, "", window.location.pathname);
+                }}
+              >
+                Back to login
+              </button>
+            ) : null}
           </form>
         </section>
         <p className="app-copyright">Copyright &copy; 2026 Jazmyn Nathaniel</p>
@@ -2191,7 +2299,7 @@ function App() {
           </h1>
         </div>
         <div className="topbar-actions">
-          <span className="user-pill">{user.email}</span>
+          <span className="user-pill">{user.username}</span>
         </div>
       </header>
 
@@ -2426,13 +2534,6 @@ function App() {
         >
           <div className="panel-header-row">
             <p className="panel-label">Payment Methods</p>
-            <button
-              type="button"
-              className="secondary-button ghost-button"
-              onClick={() => setShowPaymentDetails((current) => !current)}
-            >
-              {showPaymentDetails ? "Hide details" : "Show details"}
-            </button>
           </div>
 
           <div className="method-list">
@@ -2448,7 +2549,7 @@ function App() {
               >
                 <span className="method-type">{getPaymentTypeLabel(method.payment_type)}</span>
                 <strong>{method.label}</strong>
-                <span className="method-details">{method.masked_details}</span>
+                <span className="method-details">Fare cap tracking</span>
               </button>
             ))}
             {paymentMethods.length === 0 ? (
@@ -2480,27 +2581,7 @@ function App() {
                   ))}
                 </select>
               </label>
-              <label>
-                4-digit identifier code
-                <input
-                  type={showPaymentDetails ? "text" : "password"}
-                  inputMode="numeric"
-                  value={paymentForm.identifierCode}
-                  onChange={(event) =>
-                    updatePaymentForm("identifierCode", format4DigitCode(event.target.value))
-                  }
-                  placeholder="4821"
-                  required
-                />
-              </label>
             </div>
-            <p className="muted helper-copy">
-              Please enter a 4-digit identifier code for this card or device. Do not
-              enter the last 4 digits of your card number. Create your own code and
-              name the payment method accordingly, such as "Work Visa" with code
-              "4821". TapWise does not store, want, or need your actual card
-              information to track rides and fare caps.
-            </p>
             <button
               type="submit"
               className="primary-button"
@@ -2531,7 +2612,7 @@ function App() {
           </div>
           <p className="muted">
             {selectedMethod
-              ? `Tracking ${selectedMethod.label} (${selectedMethod.masked_details})`
+              ? `Tracking ${selectedMethod.label}`
               : "Select a payment method to see status."}
           </p>
           <div
@@ -2547,7 +2628,6 @@ function App() {
           {selectedMethod ? (
             <div className="detail-chip-row">
               <span className="detail-chip">{formatPaymentType(selectedMethod.payment_type)}</span>
-              <span className="detail-chip">Code: {selectedMethod.identifier_code}</span>
               {fareStatus?.transfer_rides_taken ? (
                 <span className="detail-chip">
                   {fareStatus.transfer_rides_taken} free{" "}
@@ -3187,7 +3267,7 @@ function App() {
           </div>
           <div className="account-summary">
             <strong>{user.username}</strong>
-            <span>{user.email}</span>
+            <span>{user.email ?? "No recovery email saved"}</span>
           </div>
           <div className="privacy-note compact-privacy-note">
             <strong>Your location stays yours.</strong>
