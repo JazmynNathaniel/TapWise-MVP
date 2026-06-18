@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
@@ -36,6 +37,43 @@ SCHEDULE_BEFORE_HOURS = 2
 SCHEDULE_AFTER_HOURS = 24
 SCHEDULE_LIMIT = 128
 RAIL_SCHEDULE_BEFORE_HOURS = 12
+NY_TZ = ZoneInfo("America/New_York")
+OMNY_BASE_FARE = 3.00
+TRANSFER_BUFFER_MINUTES = 6
+MAX_TRANSFER_CANDIDATES = 8
+MAX_TRANSFER_STOPS_PER_PAIR = 2
+ROUTE_PRIORITY_LABELS = {
+    "fastest": "shortest time",
+    "least_walking": "least walking",
+    "fewest_transfers": "fewest transfers",
+    "lowest_fare": "lowest fare",
+    "least_crowded": "least crowded",
+    "most_crowded": "most crowded",
+}
+ROUTE_PRIORITY_ALIASES = {
+    "shortest_time": "fastest",
+    "shortest_travel_time": "fastest",
+    "least_transfers": "fewest_transfers",
+    "lowest_price": "lowest_fare",
+    "cheapest": "lowest_fare",
+    "less_crowded": "least_crowded",
+    "avoid_crowds": "least_crowded",
+    "more_crowded": "most_crowded",
+    "crowded": "most_crowded",
+}
+DEFAULT_ROUTE_PRIORITIES = ("fastest", "fewest_transfers")
+MODE_WALKING_MINUTES = {
+    "bus": 3,
+    "subway": 5,
+    "lirr": 7,
+    "metro_north": 7,
+}
+MODE_CROWDING_BASE = {
+    "bus": 42,
+    "subway": 52,
+    "lirr": 48,
+    "metro_north": 48,
+}
 
 
 def _user_id() -> int:
@@ -74,6 +112,18 @@ def _parse_time_mode(raw_value: str | None) -> str:
     return "leave_at"
 
 
+def _parse_route_priorities(raw_values: list[str]) -> list[str]:
+    priorities: list[str] = []
+    for raw_value in raw_values:
+        for item in raw_value.split(","):
+            normalized = item.strip().lower().replace("-", "_")
+            normalized = ROUTE_PRIORITY_ALIASES.get(normalized, normalized)
+            if normalized in ROUTE_PRIORITY_LABELS and normalized not in priorities:
+                priorities.append(normalized)
+
+    return priorities or list(DEFAULT_ROUTE_PRIORITIES)
+
+
 def _route_stop_indexes(stops: list[str], origin: str, destination: str) -> tuple[int, int]:
     return stops.index(origin), stops.index(destination)
 
@@ -92,6 +142,174 @@ def _estimated_travel_minutes(mode: str, stop_count: int) -> int:
         "metro_north": 12,
     }.get(mode, 6)
     return max(minimum_minutes, max(1, stop_count) * per_stop_minutes)
+
+
+def _estimated_leg_walking_minutes(mode: str) -> int:
+    return MODE_WALKING_MINUTES.get(mode, 4)
+
+
+def _omny_fare_is_free(fare_status: dict | None) -> bool:
+    if not fare_status:
+        return False
+    active_transfer = fare_status.get("active_transfer") or {}
+    return bool(active_transfer.get("available") or fare_status.get("free_rides_active"))
+
+
+def _route_fare_estimate(legs: list[dict], fare_status: dict | None) -> tuple[float | None, str]:
+    uses_omny = any(leg["mode"] in OMNY_MODES for leg in legs)
+    rail_prices: list[float] = []
+    has_unavailable_rail_price = False
+
+    for leg in legs:
+        if leg["mode"] not in RAIL_MODES:
+            continue
+        rail_fare = leg.get("rail_fare") or {}
+        rail_price = rail_fare.get("estimated_price")
+        if isinstance(rail_price, (int, float)):
+            rail_prices.append(float(rail_price))
+        else:
+            has_unavailable_rail_price = True
+
+    fare_total = sum(rail_prices)
+    if uses_omny:
+        if _omny_fare_is_free(fare_status):
+            omny_label = "Current OMNY transfer or cap"
+        else:
+            fare_total += OMNY_BASE_FARE
+            omny_label = f"OMNY ${OMNY_BASE_FARE:.2f}"
+    else:
+        omny_label = ""
+
+    if has_unavailable_rail_price and not rail_prices and not uses_omny:
+        return None, "Rail fare unavailable"
+
+    if uses_omny and not rail_prices:
+        return fare_total, omny_label
+    if uses_omny and rail_prices:
+        return fare_total, f"{omny_label} + rail"
+    if rail_prices:
+        return fare_total, f"Rail ${fare_total:.2f}"
+    return None, "Fare unavailable"
+
+
+def _rush_hour_bonus(local_value: datetime) -> int:
+    if local_value.weekday() >= 5:
+        return -8
+
+    minutes = local_value.hour * 60 + local_value.minute
+    if 7 * 60 <= minutes < 9 * 60 + 30:
+        return 30
+    if 16 * 60 + 30 <= minutes < 19 * 60:
+        return 30
+    if (
+        6 * 60 <= minutes < 7 * 60
+        or 9 * 60 + 30 <= minutes < 10 * 60 + 30
+        or 15 * 60 + 30 <= minutes < 16 * 60 + 30
+        or 19 * 60 <= minutes < 20 * 60
+    ):
+        return 14
+    if minutes < 5 * 60 or minutes >= 22 * 60:
+        return -18
+    return 0
+
+
+def _clamp_metric(value: int, minimum: int, maximum: int) -> int:
+    return max(minimum, min(maximum, value))
+
+
+def _leg_crowding_score(
+    *,
+    mode: str,
+    stop_count: int,
+    service_state: str,
+    travel_time: datetime,
+    rail_fare: dict | None,
+) -> int:
+    local_value = travel_time.astimezone(NY_TZ)
+    score = MODE_CROWDING_BASE.get(mode, 44)
+    score += _rush_hour_bonus(local_value)
+
+    if stop_count >= 14:
+        score += 8
+    elif stop_count >= 8:
+        score += 4
+
+    if service_state == "service_alert":
+        score += 10
+    elif service_state in {"no_service", "no_departures"}:
+        score -= 16
+
+    if rail_fare and rail_fare.get("estimated_period") == "peak":
+        score += 12
+
+    return _clamp_metric(score, 8, 96)
+
+
+def _crowding_label(crowding_score: int) -> tuple[str, str]:
+    if crowding_score >= 70:
+        return "high", "High crowding"
+    if crowding_score >= 45:
+        return "moderate", "Moderate crowding"
+    return "low", "Light crowding"
+
+
+def _build_route_leg(
+    *,
+    mode: str,
+    line: str,
+    stops: list[str],
+    origin: str,
+    destination: str,
+    travel_time: datetime,
+) -> dict:
+    origin_index, destination_index = _route_stop_indexes(stops, origin, destination)
+    stop_count = abs(destination_index - origin_index)
+    return {
+        "mode": mode,
+        "line": line,
+        "origin": origin,
+        "destination": destination,
+        "origin_index": origin_index,
+        "destination_index": destination_index,
+        "stop_count": stop_count,
+        "travel_minutes": _estimated_travel_minutes(mode, stop_count),
+        "walking_minutes": _estimated_leg_walking_minutes(mode),
+        "rail_fare": estimate_rail_fare(mode, line, origin, destination, travel_time),
+        "counts_toward_cap": mode in OMNY_MODES,
+    }
+
+
+def _serialize_route_leg(leg: dict) -> dict:
+    return {
+        "mode": leg["mode"],
+        "line": leg["line"],
+        "origin": leg["origin"],
+        "destination": leg["destination"],
+        "stop_count": leg["stop_count"],
+        "travel_minutes": leg["travel_minutes"],
+        "walking_minutes": leg["walking_minutes"],
+        "rail_fare": leg.get("rail_fare"),
+        "counts_toward_cap": leg["counts_toward_cap"],
+    }
+
+
+def _route_label(legs: list[dict]) -> str:
+    return " -> ".join(f"{leg['line']}" for leg in legs)
+
+
+def _route_signature(legs: list[dict]) -> str:
+    return "|".join(
+        f"{leg['mode']}:{leg['line']}:{leg['origin']}:{leg['destination']}"
+        for leg in legs
+    )
+
+
+def _route_transfer_stops(legs: list[dict]) -> list[str]:
+    return [legs[index]["destination"] for index in range(len(legs) - 1)]
+
+
+def _route_preference_labels(priorities: list[str]) -> list[str]:
+    return [ROUTE_PRIORITY_LABELS[priority] for priority in priorities]
 
 
 def _departure_search_time(
@@ -426,6 +644,12 @@ def _route_candidate_score(
     rail_fare: dict | None,
     time_mode: str,
     timing: dict,
+    priorities: list[str],
+    travel_minutes: int,
+    walking_minutes: int,
+    transfer_count: int,
+    estimated_fare: float | None,
+    crowding_score: int,
 ) -> int:
     score = 0
     if service_state == "in_service":
@@ -464,6 +688,26 @@ def _route_candidate_score(
     elif timing.get("estimated_arrival_time"):
         score += 10
 
+    score += max(0, 10 - transfer_count * 5)
+
+    priority_score = 0.0
+    for priority in priorities:
+        if priority == "fastest":
+            priority_score += max(0, 150 - travel_minutes) * 0.72
+        elif priority == "least_walking":
+            priority_score += max(0, 40 - walking_minutes) * 1.9
+        elif priority == "fewest_transfers":
+            priority_score += max(0, 36 - transfer_count * 24)
+        elif priority == "lowest_fare":
+            priority_score += -12 if estimated_fare is None else max(0, 48 - estimated_fare * 5)
+        elif priority == "least_crowded":
+            priority_score += max(0, 96 - crowding_score) * 0.62
+        elif priority == "most_crowded":
+            priority_score += crowding_score * 0.6
+
+    if priorities:
+        score += round(priority_score / len(priorities))
+
     return score
 
 
@@ -475,6 +719,14 @@ def _route_candidate_reason(
     rail_fare: dict | None,
     time_mode: str,
     timing: dict,
+    priorities: list[str],
+    travel_minutes: int,
+    walking_minutes: int,
+    transfer_count: int,
+    estimated_fare: float | None,
+    fare_label: str,
+    crowding_label: str,
+    transfer_stops: list[str],
 ) -> str:
     reasons = []
     if service_state == "no_service":
@@ -495,6 +747,30 @@ def _route_candidate_reason(
             reasons.append("No returned departure is early enough for your arrive-by time.")
     elif timing.get("estimated_arrival_time"):
         reasons.append("TapWise estimated the destination arrival from your selected leave time.")
+
+    if priorities:
+        reasons.append(
+            "Ranked for "
+            + ", ".join(_route_preference_labels(priorities))
+            + "."
+        )
+
+    if transfer_count:
+        transfer_label = ", ".join(transfer_stops) or "the transfer stop"
+        reasons.append(
+            f"{transfer_count} transfer via {transfer_label}; about "
+            f"{travel_minutes} minutes riding and {walking_minutes} minutes walking."
+        )
+    else:
+        reasons.append(
+            f"Direct route; about {travel_minutes} minutes riding and "
+            f"{walking_minutes} minutes walking."
+        )
+
+    reasons.append(f"{crowding_label} estimated for the selected time.")
+
+    if estimated_fare is not None:
+        reasons.append(f"Estimated fare: {fare_label}.")
 
     if mode in OMNY_MODES:
         active_transfer = (fare_status or {}).get("active_transfer") or {}
@@ -517,6 +793,290 @@ def _route_candidate_reason(
         reasons.append("This commuter railroad trip uses separate ticketing and does not count toward OMNY.")
 
     return " ".join(reasons)
+
+
+def _route_candidate_from_legs(
+    *,
+    legs: list[dict],
+    fare_status: dict | None,
+    priorities: list[str],
+    time_mode: str,
+    travel_time: datetime,
+) -> dict:
+    first_leg = legs[0]
+    total_stop_count = sum(leg["stop_count"] for leg in legs)
+    transfer_count = max(0, len(legs) - 1)
+    travel_minutes = (
+        sum(leg["travel_minutes"] for leg in legs)
+        + transfer_count * TRANSFER_BUFFER_MINUTES
+    )
+    walking_minutes = (
+        max(leg["walking_minutes"] for leg in legs)
+        + transfer_count * TRANSFER_BUFFER_MINUTES
+    )
+    search_time = _departure_search_time(
+        time_mode=time_mode,
+        requested_time=travel_time,
+        travel_minutes=travel_minutes,
+    )
+    schedule_start, schedule_end = _schedule_window(
+        mode=first_leg["mode"],
+        time_mode=time_mode,
+        requested_time=travel_time,
+        travel_minutes=travel_minutes,
+    )
+
+    all_alerts = []
+    blocking_alerts = []
+    for leg in legs:
+        alert_payload = get_service_alerts(
+            mode=leg["mode"],
+            line=leg["line"],
+            limit=10,
+            reference_time=travel_time,
+        )
+        leg_alerts = alert_payload.get("alerts", [])
+        all_alerts.extend(leg_alerts)
+        blocking_alerts.extend(
+            alert for alert in leg_alerts if _alert_blocks_service(alert)
+        )
+
+    if blocking_alerts:
+        arrivals = []
+        service_state = "no_service"
+        schedule_options = []
+        timing = {
+            "estimated_departure_time": None,
+            "estimated_arrival_time": None,
+            "travel_minutes": travel_minutes,
+            "arrives_by_requested_time": False if time_mode == "arrive_by" else None,
+        }
+    else:
+        arrival_payload = get_next_arrivals(
+            mode=first_leg["mode"],
+            line=first_leg["line"],
+            stop_name=first_leg["origin"],
+            limit=SCHEDULE_LIMIT,
+            reference_time=schedule_start,
+            end_time=schedule_end,
+        )
+        arrivals = arrival_payload.get("arrivals", [])
+        timing = _build_trip_timing(
+            arrivals=arrivals,
+            time_mode=time_mode,
+            requested_time=travel_time,
+            travel_minutes=travel_minutes,
+            origin_index=first_leg["origin_index"],
+            destination_index=first_leg["destination_index"],
+        )
+        if arrival_payload.get("status") == "ok" and all_alerts:
+            service_state = "service_alert"
+        elif arrival_payload.get("status") == "ok":
+            service_state = "in_service"
+        elif arrival_payload.get("status") in {"empty", "partial"}:
+            service_state = "no_departures"
+        else:
+            service_state = "unavailable"
+        if (
+            time_mode == "arrive_by"
+            and service_state in {"in_service", "service_alert"}
+            and not timing.get("arrives_by_requested_time")
+        ):
+            service_state = "no_departures"
+        schedule_options = []
+        if arrival_payload.get("status") == "ok":
+            schedule_options = _build_schedule_options(
+                arrivals=arrivals,
+                time_mode=time_mode,
+                requested_time=travel_time,
+                travel_minutes=travel_minutes,
+                origin_index=first_leg["origin_index"],
+                destination_index=first_leg["destination_index"],
+                selected_departure_time=timing.get("estimated_departure_time"),
+            )
+            if service_state == "no_departures" and schedule_options:
+                service_state = "service_alert" if all_alerts else "in_service"
+
+    estimated_fare, fare_label = _route_fare_estimate(legs, fare_status)
+    crowding_score = max(
+        _leg_crowding_score(
+            mode=leg["mode"],
+            stop_count=leg["stop_count"],
+            service_state=service_state,
+            travel_time=travel_time,
+            rail_fare=leg.get("rail_fare"),
+        )
+        for leg in legs
+    )
+    crowding_level, crowding_label = _crowding_label(crowding_score)
+    first_rail_fare = first_leg.get("rail_fare")
+    score = _route_candidate_score(
+        mode=first_leg["mode"],
+        service_state=service_state,
+        fare_status=fare_status,
+        rail_fare=first_rail_fare,
+        time_mode=time_mode,
+        timing=timing,
+        priorities=priorities,
+        travel_minutes=travel_minutes,
+        walking_minutes=walking_minutes,
+        transfer_count=transfer_count,
+        estimated_fare=estimated_fare,
+        crowding_score=crowding_score,
+    )
+    if total_stop_count <= 4:
+        score += 6
+    elif total_stop_count <= 10:
+        score += 3
+
+    transfer_stops = _route_transfer_stops(legs)
+    return {
+        "mode": first_leg["mode"],
+        "line": first_leg["line"],
+        "route_label": _route_label(legs),
+        "route_signature": _route_signature(legs),
+        "origin": first_leg["origin"],
+        "destination": legs[-1]["destination"],
+        "service_state": service_state,
+        "score": score,
+        "stop_count": total_stop_count,
+        "transfer_count": transfer_count,
+        "transfer_stops": transfer_stops,
+        "walking_minutes": walking_minutes,
+        "estimated_fare": estimated_fare,
+        "fare_label": fare_label,
+        "crowding_score": crowding_score,
+        "crowding_level": crowding_level,
+        "crowding_label": crowding_label,
+        "preference_labels": _route_preference_labels(priorities),
+        "time_mode": time_mode,
+        "requested_time": travel_time.isoformat(),
+        "departure_search_time": search_time.isoformat(),
+        "schedule_window_start": schedule_start.isoformat(),
+        "schedule_window_end": schedule_end.isoformat(),
+        "estimated_departure_time": timing.get("estimated_departure_time"),
+        "estimated_arrival_time": timing.get("estimated_arrival_time"),
+        "travel_minutes": timing.get("travel_minutes"),
+        "arrives_by_requested_time": timing.get("arrives_by_requested_time"),
+        "schedule_options": schedule_options,
+        "message": _route_candidate_reason(
+            mode=first_leg["mode"],
+            service_state=service_state,
+            fare_status=fare_status,
+            rail_fare=first_rail_fare,
+            time_mode=time_mode,
+            timing=timing,
+            priorities=priorities,
+            travel_minutes=travel_minutes,
+            walking_minutes=walking_minutes,
+            transfer_count=transfer_count,
+            estimated_fare=estimated_fare,
+            fare_label=fare_label,
+            crowding_label=crowding_label,
+            transfer_stops=transfer_stops,
+        ),
+        "next_arrivals": arrivals,
+        "alerts": all_alerts,
+        "blocking_alerts": blocking_alerts,
+        "rail_fare": first_rail_fare,
+        "counts_toward_cap": any(leg["mode"] in OMNY_MODES for leg in legs),
+        "legs": [_serialize_route_leg(leg) for leg in legs],
+    }
+
+
+def _route_blueprints(
+    *,
+    options: dict,
+    origin: str,
+    destination: str,
+    preferred_mode: str,
+    preferred_line: str,
+    travel_time: datetime,
+) -> list[list[dict]]:
+    blueprints: list[list[dict]] = []
+    seen_signatures: set[str] = set()
+    origin_routes = []
+    destination_routes = []
+
+    for mode, line_options in options.items():
+        if preferred_mode and mode != preferred_mode:
+            continue
+        for line, stops in line_options.items():
+            if preferred_line and line != preferred_line:
+                continue
+            if origin in stops:
+                origin_routes.append((mode, line, stops))
+            if destination in stops:
+                destination_routes.append((mode, line, stops))
+            if origin in stops and destination in stops and origin != destination:
+                leg = _build_route_leg(
+                    mode=mode,
+                    line=line,
+                    stops=stops,
+                    origin=origin,
+                    destination=destination,
+                    travel_time=travel_time,
+                )
+                signature = _route_signature([leg])
+                if signature not in seen_signatures:
+                    seen_signatures.add(signature)
+                    blueprints.append([leg])
+
+    transfer_options: list[tuple[int, list[dict]]] = []
+    for first_mode, first_line, first_stops in origin_routes:
+        for second_mode, second_line, second_stops in destination_routes:
+            if first_mode == second_mode and first_line == second_line:
+                continue
+            shared_stops = sorted(
+                set(first_stops).intersection(second_stops) - {origin, destination}
+            )
+            ranked_transfer_stops: list[tuple[int, str]] = []
+            for transfer_stop in shared_stops:
+                first_stop_count = abs(
+                    first_stops.index(transfer_stop) - first_stops.index(origin)
+                )
+                second_stop_count = abs(
+                    second_stops.index(destination) - second_stops.index(transfer_stop)
+                )
+                if first_stop_count == 0 or second_stop_count == 0:
+                    continue
+                ranked_transfer_stops.append(
+                    (first_stop_count + second_stop_count, transfer_stop)
+                )
+
+            for _, transfer_stop in sorted(ranked_transfer_stops)[
+                :MAX_TRANSFER_STOPS_PER_PAIR
+            ]:
+                legs = [
+                    _build_route_leg(
+                        mode=first_mode,
+                        line=first_line,
+                        stops=first_stops,
+                        origin=origin,
+                        destination=transfer_stop,
+                        travel_time=travel_time,
+                    ),
+                    _build_route_leg(
+                        mode=second_mode,
+                        line=second_line,
+                        stops=second_stops,
+                        origin=transfer_stop,
+                        destination=destination,
+                        travel_time=travel_time,
+                    ),
+                ]
+                signature = _route_signature(legs)
+                if signature in seen_signatures:
+                    continue
+                seen_signatures.add(signature)
+                total_stop_count = sum(leg["stop_count"] for leg in legs)
+                transfer_options.append((total_stop_count, legs))
+
+    transfer_options.sort(key=lambda item: item[0])
+    blueprints.extend(
+        legs for _, legs in transfer_options[:MAX_TRANSFER_CANDIDATES]
+    )
+    return blueprints
 
 
 def _load_preferences(user_id: int) -> dict[tuple[str, str, str], RouteNotificationPreference]:
@@ -798,6 +1358,9 @@ def route_suggestions():
     time_mode = _parse_time_mode(request.args.get("time_mode"))
     payment_method_id = request.args.get("payment_method_id", type=int)
     limit = min(6, max(1, request.args.get("limit", 4, type=int)))
+    priorities = _parse_route_priorities(
+        request.args.getlist("priorities") + request.args.getlist("priority")
+    )
 
     if not origin or not destination:
         return jsonify({"error": "Please choose an origin and destination."}), 400
@@ -820,153 +1383,34 @@ def route_suggestions():
     if method is not None:
         fare_status = calculate_fare_status(method.rides, now=travel_time).to_dict()
 
-    candidates = []
-    for mode, line_options in options.items():
-        if preferred_mode and mode != preferred_mode:
-            continue
-        for line, stops in line_options.items():
-            if preferred_line and line != preferred_line:
-                continue
-            if origin not in stops or destination not in stops or origin == destination:
-                continue
-
-            origin_index, destination_index = _route_stop_indexes(
-                stops, origin, destination
-            )
-            stop_count = abs(destination_index - origin_index)
-            travel_minutes = _estimated_travel_minutes(mode, stop_count)
-            search_time = _departure_search_time(
-                time_mode=time_mode,
-                requested_time=travel_time,
-                travel_minutes=travel_minutes,
-            )
-            schedule_start, schedule_end = _schedule_window(
-                mode=mode,
-                time_mode=time_mode,
-                requested_time=travel_time,
-                travel_minutes=travel_minutes,
-            )
-            alert_payload = get_service_alerts(
-                mode=mode,
-                line=line,
-                limit=10,
-                reference_time=travel_time,
-            )
-            alerts = alert_payload.get("alerts", [])
-            blocking_alerts = [alert for alert in alerts if _alert_blocks_service(alert)]
-
-            if blocking_alerts:
-                arrivals = []
-                service_state = "no_service"
-                schedule_options = []
-            else:
-                arrival_payload = get_next_arrivals(
-                    mode=mode,
-                    line=line,
-                    stop_name=origin,
-                    limit=SCHEDULE_LIMIT,
-                    reference_time=schedule_start,
-                    end_time=schedule_end,
-                )
-                arrivals = arrival_payload.get("arrivals", [])
-                timing = _build_trip_timing(
-                    arrivals=arrivals,
-                    time_mode=time_mode,
-                    requested_time=travel_time,
-                    travel_minutes=travel_minutes,
-                    origin_index=origin_index,
-                    destination_index=destination_index,
-                )
-                if arrival_payload.get("status") == "ok" and alerts:
-                    service_state = "service_alert"
-                elif arrival_payload.get("status") == "ok":
-                    service_state = "in_service"
-                elif arrival_payload.get("status") in {"empty", "partial"}:
-                    service_state = "no_departures"
-                else:
-                    service_state = "unavailable"
-                if (
-                    time_mode == "arrive_by"
-                    and service_state in {"in_service", "service_alert"}
-                    and not timing.get("arrives_by_requested_time")
-                ):
-                    service_state = "no_departures"
-                schedule_options = []
-                if arrival_payload.get("status") == "ok":
-                    schedule_options = _build_schedule_options(
-                        arrivals=arrivals,
-                        time_mode=time_mode,
-                        requested_time=travel_time,
-                        travel_minutes=travel_minutes,
-                        origin_index=origin_index,
-                        destination_index=destination_index,
-                        selected_departure_time=timing.get("estimated_departure_time"),
-                    )
-                    if service_state == "no_departures" and schedule_options:
-                        service_state = "service_alert" if alerts else "in_service"
-
-            if blocking_alerts:
-                timing = {
-                    "estimated_departure_time": None,
-                    "estimated_arrival_time": None,
-                    "travel_minutes": travel_minutes,
-                    "arrives_by_requested_time": False if time_mode == "arrive_by" else None,
-                }
-
-            rail_fare = estimate_rail_fare(mode, line, origin, destination, travel_time)
-            score = _route_candidate_score(
-                mode=mode,
-                service_state=service_state,
-                fare_status=fare_status,
-                rail_fare=rail_fare,
-                time_mode=time_mode,
-                timing=timing,
-            )
-            if stop_count <= 4:
-                score += 6
-            elif stop_count <= 10:
-                score += 3
-
-            candidates.append(
-                {
-                    "mode": mode,
-                    "line": line,
-                    "origin": origin,
-                    "destination": destination,
-                    "service_state": service_state,
-                    "score": score,
-                    "stop_count": stop_count,
-                    "time_mode": time_mode,
-                    "requested_time": travel_time.isoformat(),
-                    "departure_search_time": search_time.isoformat(),
-                    "schedule_window_start": schedule_start.isoformat(),
-                    "schedule_window_end": schedule_end.isoformat(),
-                    "estimated_departure_time": timing.get("estimated_departure_time"),
-                    "estimated_arrival_time": timing.get("estimated_arrival_time"),
-                    "travel_minutes": timing.get("travel_minutes"),
-                    "arrives_by_requested_time": timing.get("arrives_by_requested_time"),
-                    "schedule_options": schedule_options,
-                    "message": _route_candidate_reason(
-                        mode=mode,
-                        service_state=service_state,
-                        fare_status=fare_status,
-                        rail_fare=rail_fare,
-                        time_mode=time_mode,
-                        timing=timing,
-                    ),
-                    "next_arrivals": arrivals,
-                    "alerts": alerts,
-                    "blocking_alerts": blocking_alerts,
-                    "rail_fare": rail_fare,
-                    "counts_toward_cap": mode in OMNY_MODES,
-                }
-            )
+    route_blueprints = _route_blueprints(
+        options=options,
+        origin=origin,
+        destination=destination,
+        preferred_mode=preferred_mode,
+        preferred_line=preferred_line,
+        travel_time=travel_time,
+    )
+    candidates = [
+        _route_candidate_from_legs(
+            legs=legs,
+            fare_status=fare_status,
+            priorities=priorities,
+            time_mode=time_mode,
+            travel_time=travel_time,
+        )
+        for legs in route_blueprints
+    ]
 
     candidates.sort(
         key=lambda item: (
             item["score"],
-            -item["stop_count"],
             item["service_state"] == "in_service",
+            -item["transfer_count"],
+            -item["travel_minutes"],
+            -item["walking_minutes"],
+            -(item["estimated_fare"] if item["estimated_fare"] is not None else 999),
+            -item["stop_count"],
         ),
         reverse=True,
     )
@@ -974,13 +1418,14 @@ def route_suggestions():
     if candidates:
         best = candidates[0]
         message = (
-            f"Best direct option: {best['line']} "
-            f"({best['mode'].replace('_', ' ').title()}). {best['message']}"
+            f"Best option for {', '.join(_route_preference_labels(priorities))}: "
+            f"{best['route_label']} ({best['mode'].replace('_', ' ').title()}). "
+            f"{best['message']}"
         )
     else:
         message = (
-            "No direct route in the TapWise catalog contains both selected stops. "
-            "Try a transfer hub or another service."
+            "No route in the TapWise catalog contains the selected stop pair yet. "
+            "Try a different transfer hub or service."
         )
 
     return jsonify(
@@ -992,6 +1437,8 @@ def route_suggestions():
             "requested_time": travel_time.isoformat(),
             "origin": origin,
             "destination": destination,
+            "priorities": priorities,
+            "preference_labels": _route_preference_labels(priorities),
             "message": message,
             "fare_status": fare_status,
             "suggestions": candidates[:limit],

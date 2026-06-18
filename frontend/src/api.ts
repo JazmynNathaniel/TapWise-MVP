@@ -8,6 +8,7 @@ import {
   RailFareEstimate,
   Recommendation,
   Ride,
+  RouteSearchPriority,
   RouteSuggestionResponse,
   RouteSummary,
   ServiceAlertResponse,
@@ -167,10 +168,11 @@ export const api = {
     });
     return request<ArrivalResponse>(`/arrivals?${query.toString()}`, {}, token);
   },
-  getServiceAlerts(token: string, mode: string, line: string) {
+  getServiceAlerts(token: string, mode: string, line: string, limit = 30) {
     const query = new URLSearchParams({
       mode,
-      line
+      line,
+      limit: `${limit}`
     });
     return request<ServiceAlertResponse>(`/service-alerts?${query.toString()}`, {}, token);
   },
@@ -204,7 +206,8 @@ export const api = {
     timestamp?: string,
     mode?: string,
     line?: string,
-    paymentMethodId?: number | null
+    paymentMethodId?: number | null,
+    priorities: RouteSearchPriority[] = []
   ) {
     const query = new URLSearchParams({
       origin,
@@ -223,6 +226,9 @@ export const api = {
     }
     if (paymentMethodId) {
       query.set("payment_method_id", `${paymentMethodId}`);
+    }
+    if (priorities.length > 0) {
+      query.set("priorities", priorities.join(","));
     }
     return request<RouteSuggestionResponse>(`/route-suggestions?${query.toString()}`, {}, token);
   },

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
-from sqlalchemy import desc
+from sqlalchemy import select
 
 from ..extensions import db
 from ..models import PaymentMethod, Ride
@@ -83,11 +83,12 @@ def transit_options():
 @jwt_required()
 def list_rides():
     user_id = int(get_jwt_identity())
-    rides = (
-        Ride.query.filter_by(user_id=user_id)
-        .order_by(desc(Ride.timestamp))
-        .all()
+    ride_query = (
+        select(Ride)
+        .filter_by(user_id=user_id)
+        .order_by(Ride.__table__.c["timestamp"].desc())
     )
+    rides: list[Ride] = list(db.session.scalars(ride_query))
     metadata_by_id = _build_ride_metadata(rides)
     return jsonify(
         [_serialize_ride(ride, metadata_by_id.get(ride.id)) for ride in rides]
@@ -110,9 +111,11 @@ def create_ride():
     if not is_valid_transit_selection(transit_mode, transit_line, entry_stop, exit_stop):
         return jsonify({"error": "Please choose a valid route and stops."}), 400
 
-    payment_method = PaymentMethod.query.filter_by(
-        id=payment_method_id, user_id=user_id
-    ).first()
+    payment_method_query = select(PaymentMethod).filter_by(
+        id=payment_method_id,
+        user_id=user_id,
+    )
+    payment_method = db.session.scalar(payment_method_query)
     if not payment_method:
         return jsonify({"error": "We couldn't find that payment method."}), 404
 

@@ -766,6 +766,35 @@ p {
   color: rgba(255, 255, 255, 0.82);
 }
 
+.alerts-tab-button {
+  border-color: rgba(255, 99, 25, 0.28);
+}
+
+.alert-nav-icon {
+  color: var(--mta-orange);
+}
+
+.dashboard-tabs button.active .alert-nav-icon {
+  color: #ffffff;
+}
+
+.alert-nav-icon.blinking {
+  animation: alert-pulse 1.15s ease-in-out infinite;
+}
+
+@keyframes alert-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.42;
+    transform: scale(1.08);
+  }
+}
+
 .travel-tab-trigger {
   width: 100%;
   height: 100%;
@@ -984,6 +1013,10 @@ p {
 .alerts-panel {
   grid-column: span 4;
   border-left: 5px solid var(--mta-red);
+}
+
+.line-alerts-panel {
+  grid-column: span 12;
 }
 
 .settings-panel {
@@ -1251,6 +1284,7 @@ p {
 }
 
 .travel-time-panel,
+.route-priority-panel,
 .travel-status-card,
 .route-suggestion-board,
 .schedule-panel,
@@ -1265,6 +1299,58 @@ p {
 
 .travel-time-panel {
   align-items: start;
+}
+
+.route-priority-panel {
+  border-color: rgba(46, 143, 255, 0.22);
+  background: rgba(46, 143, 255, 0.07);
+}
+
+.route-priority-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 0.5rem;
+}
+
+.route-priority-option {
+  display: grid;
+  align-content: center;
+  gap: 0.2rem;
+  min-height: 68px;
+  padding: 0.72rem;
+  border-radius: 8px;
+  border: 1px solid rgba(160, 180, 197, 0.18);
+  background: rgba(5, 14, 23, 0.38);
+  color: var(--ink);
+  text-align: left;
+}
+
+.route-priority-option strong,
+.route-priority-option span {
+  overflow-wrap: anywhere;
+}
+
+.route-priority-option strong {
+  font-size: 0.9rem;
+  line-height: 1.12;
+}
+
+.route-priority-option span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.route-priority-option.active {
+  border-color: rgba(46, 143, 255, 0.62);
+  background: rgba(46, 143, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(46, 143, 255, 0.18);
+}
+
+.route-priority-option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(46, 143, 255, 0.42);
 }
 
 .travel-status-card {
@@ -1412,6 +1498,24 @@ p {
   color: #ffb18d;
 }
 
+.crowding-chip.low {
+  border-color: rgba(78, 196, 161, 0.34);
+  background: rgba(78, 196, 161, 0.12);
+  color: #a9f2d8;
+}
+
+.crowding-chip.moderate {
+  border-color: rgba(252, 204, 10, 0.34);
+  background: rgba(252, 204, 10, 0.12);
+  color: var(--amber);
+}
+
+.crowding-chip.high {
+  border-color: rgba(255, 99, 25, 0.34);
+  background: rgba(255, 99, 25, 0.12);
+  color: #ffb18d;
+}
+
 .route-suggestion-board {
   border-color: rgba(160, 180, 197, 0.2);
 }
@@ -1512,6 +1616,23 @@ p {
   line-height: 1.45;
 }
 
+.route-leg-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.route-leg-item {
+  display: block;
+  padding: 0.48rem 0.58rem;
+  border-radius: 8px;
+  border: 1px solid rgba(160, 180, 197, 0.14);
+  background: rgba(17, 35, 52, 0.44);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
 .arrival-board {
   display: grid;
   gap: 0.75rem;
@@ -1530,6 +1651,18 @@ p {
   border-radius: 8px;
   border: 1px solid rgba(252, 204, 10, 0.22);
   background: rgba(252, 204, 10, 0.06);
+}
+
+.line-alert-section {
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 0.25rem;
+}
+
+.expanded-alert-list {
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
 }
 
 .arrival-board-heading {
@@ -2210,6 +2343,7 @@ p {
 
 @media (prefers-reduced-motion: reduce) {
   .travel-menu,
+  .alert-nav-icon.blinking,
   .status-strip:not(.hidden-tab-content),
   .panel:not(.hidden-tab-content) {
     animation: none;

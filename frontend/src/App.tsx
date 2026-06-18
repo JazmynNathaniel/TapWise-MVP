@@ -8,6 +8,7 @@ import {
   RailFareEstimate,
   Recommendation,
   Ride,
+  RouteSearchPriority,
   RouteSuggestionResponse,
   RouteSummary,
   ServiceAlertResponse,
@@ -81,9 +82,46 @@ const TRANSIT_MODE_OPTIONS: Array<{
   }
 ];
 
+const ROUTE_PRIORITY_OPTIONS: Array<{
+  value: RouteSearchPriority;
+  label: string;
+  detail: string;
+}> = [
+  {
+    value: "fastest",
+    label: "Shortest time",
+    detail: "Ride minutes"
+  },
+  {
+    value: "least_walking",
+    label: "Least walking",
+    detail: "Station access"
+  },
+  {
+    value: "fewest_transfers",
+    label: "Fewest transfers",
+    detail: "Directness"
+  },
+  {
+    value: "lowest_fare",
+    label: "Lowest fare",
+    detail: "OMNY + rail"
+  },
+  {
+    value: "least_crowded",
+    label: "Less crowded",
+    detail: "Comfort"
+  },
+  {
+    value: "most_crowded",
+    label: "More crowded",
+    detail: "Busy routes"
+  }
+];
+
 type AuthMode = "login" | "register";
 type ThemeMode = "dark" | "light";
-type DashboardTab = "fare" | "travel" | "payments" | "rides" | "settings";
+type DashboardTab = "fare" | "travel" | "alerts" | "payments" | "rides" | "settings";
 type NotificationFrequency = "as_it_happens" | "daily" | "weekly";
 type SoundOption = "service_change" | "travel_update" | "soft" | "bright" | "none";
 
@@ -147,6 +185,16 @@ function TravelNavIcon() {
       <path d="M16.5 9.5h1.8a1.7 1.7 0 0 1 1.7 1.7v4.3h-4" />
       <path d="M18 15.5v2" />
       <path d="M20 15.5v2" />
+    </svg>
+  );
+}
+
+function AlertsNavIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 4.5 21 20H3z" />
+      <path d="M12 9v4.5" />
+      <path d="M12 17h.01" />
     </svg>
   );
 }
@@ -324,6 +372,20 @@ function formatTravelDuration(minutes: number | null | undefined) {
   return `${minutes} min`;
 }
 
+function formatRouteTransferCount(count: number) {
+  if (count <= 0) {
+    return "Direct";
+  }
+  return `${count} ${count === 1 ? "transfer" : "transfers"}`;
+}
+
+function formatRoutePrioritySummary(priorities: RouteSearchPriority[]) {
+  return priorities
+    .map((priority) => ROUTE_PRIORITY_OPTIONS.find((option) => option.value === priority)?.label)
+    .filter(Boolean)
+    .join(" + ");
+}
+
 function formatScheduleOffset(minutes: number) {
   const absoluteMinutes = Math.abs(minutes);
   if (absoluteMinutes === 0) {
@@ -444,6 +506,13 @@ function formatCurrency(value: number | null | undefined) {
     style: "currency",
     currency: "USD"
   }).format(value);
+}
+
+function formatRouteFare(value: number | null | undefined, fallback: string) {
+  if (typeof value === "number") {
+    return formatCurrency(value);
+  }
+  return fallback;
 }
 
 function formatRailPeriodLabel(value: RailFareEstimate["estimated_period"]) {
@@ -834,6 +903,11 @@ function App() {
   const [travelTimingMode, setTravelTimingMode] = useState<TravelTimeMode>("leave_at");
   const [travelDate, setTravelDate] = useState(() => createManualRideDateTime().date);
   const [travelTime, setTravelTime] = useState(() => createManualRideDateTime().time);
+  const [routePriorities, setRoutePriorities] = useState<RouteSearchPriority[]>([
+    "fastest",
+    "fewest_transfers"
+  ]);
+  const [lineAlertsUnlocked, setLineAlertsUnlocked] = useState(false);
   const [selectedRouteAlerts, setSelectedRouteAlerts] = useState<ServiceAlertResponse | null>(null);
   const [selectedRouteAlertsLoading, setSelectedRouteAlertsLoading] = useState(false);
   const [travelStatus, setTravelStatus] = useState<TravelStatus | null>(null);
@@ -890,6 +964,7 @@ function App() {
     travelDate && travelTime
       ? new Date(`${travelDate}T${travelTime}`).toISOString()
       : undefined;
+  const routePrioritySummary = formatRoutePrioritySummary(routePriorities);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -1045,13 +1120,11 @@ function App() {
       !selectedRailDestinationStop
     ) {
       setTravelStatus(null);
-      setSelectedRouteAlerts(null);
       return;
     }
 
     let cancelled = false;
     setTravelStatusLoading(true);
-    setSelectedRouteAlertsLoading(true);
     void api
       .getTravelStatus(
         token,
@@ -1068,12 +1141,6 @@ function App() {
         }
 
         setTravelStatus(payload);
-        setSelectedRouteAlerts({
-          status: payload.alerts_status,
-          message: payload.alerts_message,
-          generated_at: payload.generated_at,
-          alerts: payload.alerts
-        });
       })
       .catch((error: Error) => {
         if (cancelled) {
@@ -1115,17 +1182,10 @@ function App() {
           alerts: [],
           blocking_alerts: []
         });
-        setSelectedRouteAlerts({
-          status: "unavailable",
-          message: error.message,
-          generated_at: generatedAt,
-          alerts: []
-        });
       })
       .finally(() => {
         if (!cancelled) {
           setTravelStatusLoading(false);
-          setSelectedRouteAlertsLoading(false);
         }
       });
 
@@ -1141,6 +1201,73 @@ function App() {
     travelTimingMode,
     token
   ]);
+
+  useEffect(() => {
+    if (!lineAlertsUnlocked || !selectedRouteLine) {
+      setSelectedRouteAlerts(null);
+      setSelectedRouteAlertsLoading(false);
+    }
+  }, [lineAlertsUnlocked, selectedRouteLine]);
+
+  useEffect(() => {
+    if (!token || !lineAlertsUnlocked || !selectedRouteLine) {
+      return;
+    }
+    if (!settings.serviceAlertsEnabled) {
+      setSelectedRouteAlerts(null);
+      setSelectedRouteAlertsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSelectedRouteAlertsLoading(true);
+    void api
+      .getServiceAlerts(token, selectedRouteMode, selectedRouteLine)
+      .then((payload) => {
+        if (!cancelled) {
+          setSelectedRouteAlerts(payload);
+        }
+      })
+      .catch((error: Error) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (error.message === SESSION_ENDED_MESSAGE) {
+          handleLogout();
+          setAuthError(error.message);
+          return;
+        }
+
+        setSelectedRouteAlerts({
+          status: "unavailable",
+          message: error.message,
+          generated_at: new Date().toISOString(),
+          alerts: []
+        });
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSelectedRouteAlertsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    lineAlertsUnlocked,
+    selectedRouteLine,
+    selectedRouteMode,
+    settings.serviceAlertsEnabled,
+    token
+  ]);
+
+  useEffect(() => {
+    if (dashboardTab === "alerts" && (!lineAlertsUnlocked || !selectedRouteLine)) {
+      setDashboardTab("travel");
+    }
+  }, [dashboardTab, lineAlertsUnlocked, selectedRouteLine]);
 
   useEffect(() => {
     if (!token || !selectedRouteStop || !selectedRailDestinationStop) {
@@ -1159,7 +1286,8 @@ function App() {
         selectedTravelTimestamp,
         undefined,
         undefined,
-        selectedMethodId
+        selectedMethodId,
+        routePriorities
       )
       .then((payload) => {
         if (!cancelled) {
@@ -1186,6 +1314,11 @@ function App() {
           requested_time: selectedTravelTimestamp ?? generatedAt,
           origin: selectedRouteStop,
           destination: selectedRailDestinationStop,
+          priorities: routePriorities,
+          preference_labels: routePriorities.map(
+            (priority) =>
+              ROUTE_PRIORITY_OPTIONS.find((option) => option.value === priority)?.label ?? priority
+          ),
           message: error.message,
           fare_status: null,
           suggestions: []
@@ -1203,6 +1336,7 @@ function App() {
   }, [
     selectedMethodId,
     selectedRailDestinationStop,
+    routePriorities,
     selectedRouteMode,
     selectedRouteStop,
     selectedTravelTimestamp,
@@ -1687,6 +1821,7 @@ function App() {
 
   function selectTravelMode(mode: TransitMode) {
     setDashboardTab("travel");
+    setLineAlertsUnlocked(false);
     setSelectedRouteMode(mode);
     const modeOptions = transitOptions?.[mode] ?? {};
     const line = Object.keys(modeOptions)[0] ?? "";
@@ -1704,9 +1839,22 @@ function App() {
 
     setSelectedRouteMode(mode);
     setSelectedRouteLine(line);
+    setLineAlertsUnlocked(true);
     const stops = transitOptions?.[mode]?.[line] ?? [];
     setSelectedRouteStop(stops[0] ?? "");
     setSelectedRailDestinationStop(stops[1] ?? stops[0] ?? "");
+  }
+
+  function toggleRoutePriority(priority: RouteSearchPriority) {
+    setRoutePriorities((current) => {
+      if (current.includes(priority)) {
+        if (current.length === 1) {
+          return current;
+        }
+        return current.filter((item) => item !== priority);
+      }
+      return [...current, priority];
+    });
   }
 
   function selectScheduleOption(option: TravelScheduleOption) {
@@ -2005,6 +2153,20 @@ function App() {
   const rideFormIsRail = isRailTransitMode(rideForm.transitMode);
   const frequentRoutes = personalizedAlerts?.routes ?? [];
   const personalizedNotifications = personalizedAlerts?.notifications ?? [];
+  const selectedLineNotifications = personalizedNotifications.filter(
+    (notification) =>
+      notification.transit_mode === selectedRouteMode &&
+      notification.line === selectedRouteLine
+  );
+  const selectedLineAlertCount = settings.serviceAlertsEnabled
+    ? selectedRouteAlerts?.alerts.length ?? 0
+    : 0;
+  const selectedLineUpdateCount = settings.routeUpdatesEnabled
+    ? selectedLineNotifications.length
+    : 0;
+  const selectedLineEventCount = selectedLineAlertCount + selectedLineUpdateCount;
+  const lineAlertsTabVisible = lineAlertsUnlocked && Boolean(selectedRouteLine);
+  const lineAlertsShouldBlink = selectedRouteAlertsLoading || selectedLineEventCount > 0;
 
   const selectedMethod = paymentMethods.find((method) => method.id === selectedMethodId) ?? null;
   const ridesTaken = fareStatus?.rides_taken ?? 0;
@@ -2138,6 +2300,36 @@ function App() {
             </div>
           ) : null}
         </div>
+        {lineAlertsTabVisible ? (
+          <button
+            type="button"
+            aria-label="Line alerts"
+            aria-current={dashboardTab === "alerts" ? "page" : undefined}
+            className={
+              dashboardTab === "alerts"
+                ? "active icon-tab alerts-tab-button"
+                : "icon-tab alerts-tab-button"
+            }
+            data-tooltip="Line alerts"
+            onClick={() => selectDashboardTab("alerts")}
+          >
+            <span
+              className={
+                lineAlertsShouldBlink ? "nav-icon alert-nav-icon blinking" : "nav-icon alert-nav-icon"
+              }
+            >
+              <AlertsNavIcon />
+            </span>
+            <span className="sr-only">Line alerts</span>
+            <small>
+              {selectedRouteAlertsLoading
+                ? "Checking"
+                : selectedLineEventCount
+                  ? `${selectedLineEventCount} update${selectedLineEventCount === 1 ? "" : "s"}`
+                  : "No alerts"}
+            </small>
+          </button>
+        ) : null}
         <button
           type="button"
           aria-label="Pay"
@@ -2488,6 +2680,30 @@ function App() {
                 </p>
               </div>
 
+              <div className="route-priority-panel">
+                <div className="arrival-board-heading">
+                  <strong>Route priorities</strong>
+                  <span>{routePrioritySummary}</span>
+                </div>
+                <div className="route-priority-grid">
+                  {ROUTE_PRIORITY_OPTIONS.map((option) => {
+                    const active = routePriorities.includes(option.value);
+                    return (
+                      <button
+                        type="button"
+                        key={option.value}
+                        className={active ? "route-priority-option active" : "route-priority-option"}
+                        aria-pressed={active}
+                        onClick={() => toggleRoutePriority(option.value)}
+                      >
+                        <strong>{option.label}</strong>
+                        <span>{option.detail}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div
                 className={`travel-status-card ${
                   travelStatus?.service_state ?? "unavailable"
@@ -2612,23 +2828,31 @@ function App() {
               <div className="route-suggestion-board" aria-live="polite">
                 <div className="arrival-board-heading">
                   <strong>Route suggestions</strong>
-                  <span>{routeSuggestionsLoading ? "Checking" : "Best direct matches"}</span>
+                  <span>
+                    {routeSuggestionsLoading
+                      ? "Checking"
+                      : routeSuggestions?.preference_labels.length
+                        ? routeSuggestions.preference_labels.join(" + ")
+                        : "Best matches"}
+                  </span>
                 </div>
                 {routeSuggestionsLoading ? (
-                  <p className="muted">Comparing route, service, and fare-cap context...</p>
+                  <p className="muted">
+                    Comparing time, walking, transfers, fare, and crowding for your selected trip...
+                  </p>
                 ) : routeSuggestions?.suggestions.length ? (
                   <div className="route-suggestion-list">
                     {routeSuggestions.suggestions.map((suggestion, index) => (
                       <button
                         type="button"
                         className="route-suggestion-card"
-                        key={`${suggestion.mode}:${suggestion.line}`}
+                        key={suggestion.route_signature || `${suggestion.mode}:${suggestion.line}`}
                         onClick={() => selectTravelRoute(suggestion.mode, suggestion.line)}
                       >
                         <div>
                           <span className="route-chip">
                             {index === 0 ? "Best" : "Option"} -{" "}
-                            {formatModeLabel(suggestion.mode)} {suggestion.line}
+                            {suggestion.route_label || `${formatModeLabel(suggestion.mode)} ${suggestion.line}`}
                           </span>
                           <strong>
                             {suggestion.service_state === "no_service"
@@ -2641,11 +2865,33 @@ function App() {
                           </strong>
                           <p>{suggestion.message}</p>
                         </div>
+                        {suggestion.legs.length > 1 ? (
+                          <div className="route-leg-list" aria-label="Suggested route legs">
+                            {suggestion.legs.map((leg, legIndex) => (
+                              <span
+                                className="route-leg-item"
+                                key={`${suggestion.route_signature}:${legIndex}`}
+                              >
+                                {formatModeLabel(leg.mode)} {leg.line}: {leg.origin} to{" "}
+                                {leg.destination}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                         <div className="ride-chip-row">
                           <span className="fare-chip travel-time-chip">
                             {suggestion.time_mode === "arrive_by"
                               ? `Leave ${formatTripTime(suggestion.estimated_departure_time)}`
                               : `Arrive ${formatTripTime(suggestion.estimated_arrival_time)}`}
+                          </span>
+                          <span className="fare-chip">
+                            {formatTravelDuration(suggestion.travel_minutes)}
+                          </span>
+                          <span className="fare-chip">
+                            Walk {formatTravelDuration(suggestion.walking_minutes)}
+                          </span>
+                          <span className="fare-chip">
+                            {formatRouteTransferCount(suggestion.transfer_count)}
                           </span>
                           {suggestion.arrives_by_requested_time === false ? (
                             <span className="fare-chip timing-warning-chip">
@@ -2653,7 +2899,10 @@ function App() {
                             </span>
                           ) : null}
                           <span className="fare-chip">
-                            {suggestion.counts_toward_cap ? "OMNY cap" : "Separate fare"}
+                            {formatRouteFare(suggestion.estimated_fare, suggestion.fare_label)}
+                          </span>
+                          <span className={`fare-chip crowding-chip ${suggestion.crowding_level}`}>
+                            {suggestion.crowding_label}
                           </span>
                           {suggestion.rail_fare ? (
                             <span className="fare-chip rail-price-chip">
@@ -2718,90 +2967,93 @@ function App() {
                 </div>
               ) : null}
 
-              <div className="selected-alert-board" aria-live="polite">
-                <div className="arrival-board-heading">
-                  <strong>Delays and service changes</strong>
-                  <span>{selectedRouteLine || "Select a route"}</span>
-                </div>
-                {travelStatus?.service_state === "no_service" ? (
-                  <p className="empty-state">
-                    No separate service-change list is available because this line is
-                    currently reported as not in service for the selected trip time.
-                  </p>
-                ) : !settings.serviceAlertsEnabled ? (
-                  <p className="empty-state">
-                    Service updates are paused. You can turn them back on in Settings.
-                  </p>
-                ) : selectedRouteAlertsLoading ? (
-                  <p className="muted">Checking for service updates...</p>
-                ) : null}
-                {travelStatus?.service_state !== "no_service" &&
-                settings.serviceAlertsEnabled &&
-                !selectedRouteAlertsLoading &&
-                selectedRouteAlerts ? (
-                  selectedRouteAlerts.alerts.length > 0 ? (
-                    <div className="selected-alert-list">
-                      {selectedRouteAlerts.alerts.map((alert) => (
-                        <div className="selected-alert-card" key={alert.id}>
-                          <span className="route-chip">
-                            {formatModeLabel(alert.transit_mode)} {alert.line ?? selectedRouteLine}
-                          </span>
-                          <strong>{alert.title}</strong>
-                          <p>{alert.description || alert.effect || "Service change reported."}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="empty-state">
-                      {selectedRouteAlerts.status === "ok"
-                        ? "No alerts or service changes to report. You're all set. Safe travels!"
-                        : selectedRouteAlerts.message}
-                    </p>
-                  )
-                ) : null}
+            </div>
+          </div>
+        </article>
+
+        {lineAlertsTabVisible ? (
+          <article
+            className={
+              dashboardTab === "alerts"
+                ? "panel alerts-panel line-alerts-panel"
+                : "panel alerts-panel line-alerts-panel hidden-tab-content"
+            }
+          >
+            <div className="panel-header-row">
+              <div>
+                <p className="panel-label">Line alerts</p>
+                <h2>
+                  {formatModeLabel(selectedRouteMode)} {selectedRouteLine}
+                </h2>
               </div>
-
+              <span className="selected-method-pill">
+                {selectedLineEventCount
+                  ? `${selectedLineEventCount} update${selectedLineEventCount === 1 ? "" : "s"}`
+                  : "Monitoring line"}
+              </span>
             </div>
-          </div>
-        </article>
 
-        <article
-          className={
-            dashboardTab === "travel"
-              ? "panel alerts-panel"
-              : "panel alerts-panel hidden-tab-content"
-          }
-        >
-          <div className="panel-header-row">
-            <div>
-              <p className="panel-label">Service updates</p>
-              <h2>Frequent routes</h2>
+            <div className="line-alert-section" aria-live="polite">
+              <div className="arrival-board-heading">
+                <strong>Service changes</strong>
+                <span>{selectedRouteAlertsLoading ? "Checking" : selectedRouteLine}</span>
+              </div>
+              {!settings.serviceAlertsEnabled ? (
+                <p className="empty-state">
+                  Service updates are paused. You can turn them back on in Settings.
+                </p>
+              ) : selectedRouteAlertsLoading ? (
+                <p className="muted">Checking all active service changes for this line...</p>
+              ) : selectedRouteAlerts?.alerts.length ? (
+                <div className="selected-alert-list expanded-alert-list">
+                  {selectedRouteAlerts.alerts.map((alert) => (
+                    <div className="selected-alert-card" key={alert.id}>
+                      <span className="route-chip">
+                        {formatModeLabel(alert.transit_mode)} {alert.line ?? selectedRouteLine}
+                      </span>
+                      <strong>{alert.title}</strong>
+                      <p>{alert.description || alert.effect || "Service change reported."}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="empty-state">
+                  {selectedRouteAlerts?.status === "unavailable"
+                    ? selectedRouteAlerts.message
+                    : "No service changes are reported for this line right now."}
+                </p>
+              )}
             </div>
-          </div>
 
-          <div className="notification-list">
-            {settings.routeUpdatesEnabled
-              ? personalizedNotifications.map((notification) => (
-                  <div className="notification-card" key={notification.id}>
-                    <span className="route-chip">
-                      {formatModeLabel(notification.transit_mode)} {notification.line}
-                    </span>
-                    <strong>{notification.title}</strong>
-                    <p>{notification.message}</p>
-                  </div>
-                ))
-              : null}
-            {!settings.routeUpdatesEnabled ? (
-              <p className="empty-state">
-                Route update notifications are paused. You can turn them back on in Settings.
-              </p>
-            ) : personalizedNotifications.length === 0 ? (
-              <p className="empty-state">
-                No frequent-route updates yet. Once you log a few rides, TapWise will keep an eye on those lines for you.
-              </p>
-            ) : null}
-          </div>
-        </article>
+            <div className="line-alert-section">
+              <div className="arrival-board-heading">
+                <strong>Route updates</strong>
+                <span>{selectedLineNotifications.length ? "Personalized" : "None yet"}</span>
+              </div>
+              {!settings.routeUpdatesEnabled ? (
+                <p className="empty-state">
+                  Route update notifications are paused. You can turn them back on in Settings.
+                </p>
+              ) : selectedLineNotifications.length ? (
+                <div className="notification-list">
+                  {selectedLineNotifications.map((notification) => (
+                    <div className="notification-card" key={notification.id}>
+                      <span className="route-chip">
+                        {formatModeLabel(notification.transit_mode)} {notification.line}
+                      </span>
+                      <strong>{notification.title}</strong>
+                      <p>{notification.message}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="empty-state">
+                  No personalized updates are active for this selected line.
+                </p>
+              )}
+            </div>
+          </article>
+        ) : null}
 
         <article
           className={
@@ -2834,7 +3086,7 @@ function App() {
             <label className="toggle-row">
               <span>
                 <strong>Service changes</strong>
-                <small>Delay and service-change messages on the travel page.</small>
+                <small>Delay and service-change messages on the line alerts page.</small>
               </span>
               <input
                 type="checkbox"

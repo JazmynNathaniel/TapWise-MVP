@@ -139,11 +139,22 @@ export type TravelStatus = {
 export type RouteSuggestion = {
   mode: TransitMode;
   line: string;
+  route_label: string;
+  route_signature: string;
   origin: string;
   destination: string;
   service_state: TravelStatus["service_state"];
   score: number;
   stop_count: number;
+  transfer_count: number;
+  transfer_stops: string[];
+  walking_minutes: number;
+  estimated_fare: number | null;
+  fare_label: string;
+  crowding_score: number;
+  crowding_level: "low" | "moderate" | "high";
+  crowding_label: string;
+  preference_labels: string[];
   time_mode: TravelTimeMode;
   requested_time: string;
   departure_search_time: string;
@@ -160,7 +171,28 @@ export type RouteSuggestion = {
   blocking_alerts: ServiceAlert[];
   rail_fare: RailFareEstimate | null;
   counts_toward_cap: boolean;
+  legs: RouteSuggestionLeg[];
 };
+
+export type RouteSuggestionLeg = {
+  mode: TransitMode;
+  line: string;
+  origin: string;
+  destination: string;
+  stop_count: number;
+  travel_minutes: number;
+  walking_minutes: number;
+  rail_fare: RailFareEstimate | null;
+  counts_toward_cap: boolean;
+};
+
+export type RouteSearchPriority =
+  | "fastest"
+  | "least_walking"
+  | "fewest_transfers"
+  | "lowest_fare"
+  | "least_crowded"
+  | "most_crowded";
 
 export type RouteSuggestionResponse = {
   status: "ok" | "empty";
@@ -170,6 +202,8 @@ export type RouteSuggestionResponse = {
   requested_time: string;
   origin: string;
   destination: string;
+  priorities: RouteSearchPriority[];
+  preference_labels: string[];
   message: string;
   fare_status: FareStatus | null;
   suggestions: RouteSuggestion[];

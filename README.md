@@ -13,6 +13,8 @@ TapWise is an MVP web app for NYC transit riders. It helps users track OMNY-styl
 - Route board for subway, bus, LIRR, and Metro-North lines
 - Planned travel checks by route, origin, destination, and travel time
 - Route suggestions that consider service state, fare-cap progress, and rail ticket prices
+- Route suggestions that can be ranked by shortest travel time, least walking,
+  fewest transfers, lowest fare, and estimated crowding for the selected time
 - Live arrivals grouped into adjacent terminal-direction cards
 - Service alerts and delay/service-change display for the selected route and travel time
 - Peak and off-peak ticket estimates for LIRR and Metro-North trips
