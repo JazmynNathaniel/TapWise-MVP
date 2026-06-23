@@ -33,6 +33,8 @@ const THEME_KEY = "tapwise_theme";
 const SETTINGS_KEY = "tapwise_settings";
 const SILENCED_TRANSFER_NOTIFICATIONS_KEY = "tapwise_silenced_transfer_notifications";
 const SESSION_ENDED_MESSAGE = "Your session has ended. Please sign in again.";
+const API_STARTUP_MESSAGE =
+  "Starting TapWise. This can take about a minute after the backend has been idle.";
 const PASSWORD_RULE_MESSAGE =
   "Password must be at least 8 characters and include one capital letter, one number, one special character (!@#$%^&*_-), and no spaces.";
 const ACTION_RETRY_DELAY_MS = 3500;
@@ -882,8 +884,11 @@ function getAuthTitle(mode: AuthMode) {
   return "Welcome back";
 }
 
-function getAuthButtonLabel(mode: AuthMode, isSubmitting: boolean) {
+function getAuthButtonLabel(mode: AuthMode, isSubmitting: boolean, isStartingApi: boolean) {
   if (isSubmitting) {
+    if (isStartingApi) {
+      return "Starting TapWise...";
+    }
     if (mode === "register") {
       return "Creating...";
     }
@@ -967,6 +972,7 @@ function App() {
   const [authNotice, setAuthNotice] = useState("");
   const [appError, setAppError] = useState("");
   const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [authStartupPending, setAuthStartupPending] = useState(false);
   const [authRetryLocked, setAuthRetryLocked] = useState(false);
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [paymentRetryLocked, setPaymentRetryLocked] = useState(false);
@@ -1012,6 +1018,14 @@ function App() {
   useEffect(() => {
     safeStorageSetItem(SETTINGS_KEY, JSON.stringify(settings));
   }, [settings]);
+
+  useEffect(() => {
+    void api.warmHealthCheck().catch((error: Error) => {
+      if (import.meta.env.DEV) {
+        console.info("[TapWise API] warmup request did not complete", error.message);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -1636,6 +1650,7 @@ function App() {
     try {
       setLoading(true);
       setAppError("");
+      await api.warmHealthCheck();
       const [
         methods,
         rideItems,
@@ -1704,10 +1719,16 @@ function App() {
       }
     }
 
+    let startupNoticeTimer: number | undefined;
     setAuthSubmitting(true);
+    setAuthStartupPending(false);
     try {
       setAuthError("");
       setAuthNotice("");
+      startupNoticeTimer = window.setTimeout(() => {
+        setAuthStartupPending(true);
+        setAuthNotice(API_STARTUP_MESSAGE);
+      }, 1200);
       if (mode === "recover") {
         const response = await api.requestPasswordReset(normalizedUsername);
         setAuthNotice(response.message);
@@ -1751,6 +1772,10 @@ function App() {
       setAuthError((error as Error).message);
       lockActionTemporarily(setAuthRetryLocked);
     } finally {
+      if (startupNoticeTimer) {
+        window.clearTimeout(startupNoticeTimer);
+      }
+      setAuthStartupPending(false);
       setAuthSubmitting(false);
     }
   }
@@ -2220,7 +2245,7 @@ function App() {
               className="primary-button"
               disabled={authSubmitting || authRetryLocked}
             >
-              {getAuthButtonLabel(mode, authSubmitting)}
+              {getAuthButtonLabel(mode, authSubmitting, authStartupPending)}
             </button>
             {mode === "recover" || mode === "reset" ? (
               <button

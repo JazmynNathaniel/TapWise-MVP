@@ -1,8 +1,9 @@
 import re
+from time import perf_counter
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request
+from flask import Flask, current_app, g, jsonify, request
 from sqlalchemy import inspect, text
 from werkzeug.exceptions import HTTPException
 
@@ -251,10 +252,31 @@ def create_app() -> Flask:
     )
 
     @app.before_request
+    def start_request_timer():
+        g.request_started_at = perf_counter()
+
+    @app.before_request
     def enforce_rate_limits():
         if is_rate_limited(request):
             return _safe_api_error(429)
         return None
+
+    @app.after_request
+    def log_request_timing(response):
+        started_at = getattr(g, "request_started_at", None)
+        if started_at is None:
+            return response
+
+        duration_ms = (perf_counter() - started_at) * 1000
+        response.headers["Server-Timing"] = f"app;dur={duration_ms:.1f}"
+        current_app.logger.info(
+            "request_timing method=%s path=%s status=%s duration_ms=%.1f",
+            request.method,
+            request.path,
+            response.status_code,
+            duration_ms,
+        )
+        return response
 
     @jwt.token_in_blocklist_loader
     def handle_blocklisted_token(_jwt_header, jwt_payload):

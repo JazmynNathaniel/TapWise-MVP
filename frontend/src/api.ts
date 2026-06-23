@@ -30,6 +30,14 @@ const NETWORK_ERROR_MESSAGE =
 const SLOW_RESPONSE_MESSAGE =
   "TapWise is taking longer than expected. Please try again in a moment.";
 const REQUEST_TIMEOUT_MS = 10000;
+const STARTUP_REQUEST_TIMEOUT_MS = 75000;
+
+type RequestOptions = {
+  timeoutMs?: number;
+  timingLabel?: string;
+};
+
+let apiWarmupPromise: Promise<{ status: string }> | null = null;
 
 type PaymentMethodPayload = {
   label: string;
@@ -93,10 +101,36 @@ function friendlyErrorMessage(path: string, status: number) {
   return GENERIC_ERROR_MESSAGE;
 }
 
-async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
+function logRequestTiming(
+  path: string,
+  method: string,
+  durationMs: number,
+  status: number | "network_error" | "timeout"
+) {
+  if (!import.meta.env.DEV) {
+    return;
+  }
+
+  console.info("[TapWise API]", {
+    path,
+    method,
+    status,
+    durationMs: Math.round(durationMs)
+  });
+}
+
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  token?: string,
+  requestOptions: RequestOptions = {}
+): Promise<T> {
   let response: Response;
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutMs = requestOptions.timeoutMs ?? REQUEST_TIMEOUT_MS;
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = performance.now();
+  const method = options.method ?? "GET";
 
   try {
     response = await fetch(`${API_BASE}${path}`, {
@@ -109,13 +143,23 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
       }
     });
   } catch (error) {
+    const durationMs = performance.now() - startedAt;
     if (error instanceof DOMException && error.name === "AbortError") {
+      logRequestTiming(requestOptions.timingLabel ?? path, method, durationMs, "timeout");
       throw new Error(SLOW_RESPONSE_MESSAGE);
     }
+    logRequestTiming(requestOptions.timingLabel ?? path, method, durationMs, "network_error");
     throw new Error(NETWORK_ERROR_MESSAGE);
   } finally {
     window.clearTimeout(timeoutId);
   }
+
+  logRequestTiming(
+    requestOptions.timingLabel ?? path,
+    method,
+    performance.now() - startedAt,
+    response.status
+  );
 
   if (!response.ok) {
     throw new Error(friendlyErrorMessage(path, response.status));
@@ -125,29 +169,51 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
 }
 
 export const api = {
+  warmHealthCheck() {
+    apiWarmupPromise ??= request<{ status: string }>("/health", {}, undefined, {
+      timeoutMs: STARTUP_REQUEST_TIMEOUT_MS,
+      timingLabel: "/health:warmup"
+    }).finally(() => {
+      apiWarmupPromise = null;
+    });
+
+    return apiWarmupPromise;
+  },
   register(username: string, email: string, password: string) {
     const body = email ? { username, email, password } : { username, password };
     return request<AuthResponse>("/auth/register", {
       method: "POST",
       body: JSON.stringify(body)
+    }, undefined, {
+      timeoutMs: STARTUP_REQUEST_TIMEOUT_MS,
+      timingLabel: "/auth/register"
     });
   },
   login(username: string, password: string) {
     return request<AuthResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password })
+    }, undefined, {
+      timeoutMs: STARTUP_REQUEST_TIMEOUT_MS,
+      timingLabel: "/auth/login"
     });
   },
   requestPasswordReset(username: string) {
     return request<{ message: string }>("/auth/password-reset/request", {
       method: "POST",
       body: JSON.stringify({ username })
+    }, undefined, {
+      timeoutMs: STARTUP_REQUEST_TIMEOUT_MS,
+      timingLabel: "/auth/password-reset/request"
     });
   },
   confirmPasswordReset(username: string, token: string, password: string) {
     return request<{ message: string }>("/auth/password-reset/confirm", {
       method: "POST",
       body: JSON.stringify({ username, token, password })
+    }, undefined, {
+      timeoutMs: STARTUP_REQUEST_TIMEOUT_MS,
+      timingLabel: "/auth/password-reset/confirm"
     });
   },
   logout(token: string) {
