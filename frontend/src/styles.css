@@ -2267,12 +2267,18 @@ p {
   }
 
   .dashboard-tabs {
+    --mobile-tabs-edge: 0.5rem;
+    --mobile-tabs-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    --mobile-tabs-height: 4.2rem;
     position: fixed;
     top: auto;
-    right: 0.75rem;
-    bottom: 0.75rem;
-    left: 0.75rem;
+    right: var(--mobile-tabs-edge);
+    bottom: var(--mobile-tabs-bottom);
+    left: var(--mobile-tabs-edge);
     z-index: 20;
+    grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+    gap: 0.25rem;
+    padding: 0.3rem;
     box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
   }
 
@@ -2297,11 +2303,15 @@ p {
   }
 
   .travel-menu {
-    --menu-offset-x: -35%;
+    --menu-offset-x: 0;
+    position: fixed;
     top: auto;
-    bottom: calc(100% + 0.45rem);
-    left: 50%;
-    width: min(280px, calc(100vw - 1.5rem));
+    right: var(--mobile-tabs-edge);
+    bottom: calc(var(--mobile-tabs-bottom) + var(--mobile-tabs-height) + 0.5rem);
+    left: var(--mobile-tabs-edge);
+    width: auto;
+    max-height: calc(100dvh - var(--mobile-tabs-bottom) - var(--mobile-tabs-height) - 1.25rem);
+    overflow-y: auto;
   }
 
   .travel-menu button {
