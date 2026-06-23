@@ -33,8 +33,7 @@ const THEME_KEY = "tapwise_theme";
 const SETTINGS_KEY = "tapwise_settings";
 const SILENCED_TRANSFER_NOTIFICATIONS_KEY = "tapwise_silenced_transfer_notifications";
 const SESSION_ENDED_MESSAGE = "Your session has ended. Please sign in again.";
-const API_STARTUP_MESSAGE =
-  "Starting TapWise. This can take about a minute after the backend has been idle.";
+const AUTH_LOADING_MESSAGE = "TapWise is loading";
 const PASSWORD_RULE_MESSAGE =
   "Password must be at least 8 characters and include one capital letter, one number, one special character (!@#$%^&*_-), and no spaces.";
 const ACTION_RETRY_DELAY_MS = 3500;
@@ -887,7 +886,7 @@ function getAuthTitle(mode: AuthMode) {
 function getAuthButtonLabel(mode: AuthMode, isSubmitting: boolean, isStartingApi: boolean) {
   if (isSubmitting) {
     if (isStartingApi) {
-      return "Starting TapWise...";
+      return AUTH_LOADING_MESSAGE;
     }
     if (mode === "register") {
       return "Creating...";
@@ -1727,7 +1726,6 @@ function App() {
       setAuthNotice("");
       startupNoticeTimer = window.setTimeout(() => {
         setAuthStartupPending(true);
-        setAuthNotice(API_STARTUP_MESSAGE);
       }, 1200);
       if (mode === "recover") {
         const response = await api.requestPasswordReset(normalizedUsername);
@@ -2086,54 +2084,10 @@ function App() {
             LIRR, and Metro-North arrivals, and keep an eye on service changes
             for the routes you use most.
           </p>
-
-          <div className="auth-stat-grid" aria-label="TapWise app features">
-            <div>
-              <strong>Fares</strong>
-              <span>rides left toward free trips</span>
-            </div>
-            <div>
-              <strong>Travel</strong>
-              <span>next transit arrivals by route</span>
-            </div>
-            <div>
-              <strong>Alerts</strong>
-              <span>updates for familiar lines</span>
-            </div>
-          </div>
-
-          <div className="fare-preview" aria-label="TapWise feature preview">
-            <div className="fare-preview-header">
-              <span>Today in TapWise</span>
-              <strong>Fare + travel</strong>
-            </div>
-            <div className="fare-preview-meter">
-              <span />
-            </div>
-            <div className="feature-preview-list">
-              <div>
-                <strong>4 rides left</strong>
-                <span>Best card for your next tap</span>
-              </div>
-              <div>
-                <strong>3 min</strong>
-                <span>Next train toward South Ferry</span>
-              </div>
-              <div>
-                <strong>All clear</strong>
-                <span>No alerts for your usual route</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="privacy-note" aria-label="TapWise privacy note">
-            <strong>No location tracking needed.</strong>
-            <p>
-              TapWise does not need or want your current location to track your rides.
-              Your frequent routes are based on the trips you choose to log, not where
-              your phone is.
-            </p>
-          </div>
+          <p className="lede auth-privacy-copy">
+            No location tracking needed. Your frequent routes are based on the trips
+            you choose to log, not where your phone is.
+          </p>
         </section>
 
         <section className="auth-panel" aria-label="TapWise account access">
@@ -2238,7 +2192,18 @@ function App() {
                 Forgot password?
               </button>
             ) : null}
-            {authNotice ? <p className="notice">{authNotice}</p> : null}
+            {authStartupPending ? (
+              <p className="notice loading-notice" aria-live="polite">
+                <span>{AUTH_LOADING_MESSAGE}</span>
+                <span className="loading-dots" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              </p>
+            ) : authNotice ? (
+              <p className="notice">{authNotice}</p>
+            ) : null}
             {authError ? <p className="error">{authError}</p> : null}
             <button
               type="submit"
